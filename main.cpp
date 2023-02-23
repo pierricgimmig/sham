@@ -25,8 +25,7 @@ constexpr size_t kNumElements = 64 * 1024;
 using UintQueue = sham::mpmc::Queue<uint64_t, kNumElements>;
 
 int create_sham() {
-  sham::SharedMemoryBuffer shared_memory_buffer("/my_memory", kBufferSize,
-                                                sham::SharedMemoryBuffer::Type::kCreate);
+  sham::SharedMemoryBuffer shared_memory_buffer("/my_memory", kBufferSize);
 
   TRACE_VAR(shared_memory_buffer.size());
   UintQueue* q = shared_memory_buffer.Allocate<UintQueue>();
@@ -51,9 +50,8 @@ int create_sham() {
 }
 
 int read_sham() {
-  sham::SharedMemoryBuffer shared_memory_buffer("/my_memory", kBufferSize,
-                                                sham::SharedMemoryBuffer::Type::kRead);
-  UintQueue* q = shared_memory_buffer.As<UintQueue>();
+  sham::SharedMemoryBufferView shared_memory_buffer_view("/my_memory", kBufferSize);
+  UintQueue* q = shared_memory_buffer_view.As<UintQueue>();
 
   TRACE_VAR(q->size());
   TRACE_VAR(q->capacity());
@@ -69,9 +67,8 @@ int read_sham() {
 
 int read_sham_in_loop() {
   while (true) {
-    sham::SharedMemoryBuffer shared_memory_buffer("/my_memory", kBufferSize,
-                                                sham::SharedMemoryBuffer::Type::kRead);
-    UintQueue* q = shared_memory_buffer.As<UintQueue>();
+    sham::SharedMemoryBufferView shared_memory_buffer_view("/my_memory", kBufferSize);
+    UintQueue* q = shared_memory_buffer_view.As<UintQueue>();
     TRACE_VAR(q->size());
     TRACE_VAR(q->capacity());
     TRACE_VAR(q->empty());
