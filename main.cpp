@@ -35,7 +35,7 @@ int create_sham() {
   TRACE_VAR(shared_memory_buffer.size());
   TRACE_VAR(shared_memory_buffer.size() - sizeof(UintQueue));
   TRACE_VAR(shared_memory_buffer.capacity());
-  TRACE_VAR(float(sizeof(*q))/float(kNumElements));
+  TRACE_VAR(float(sizeof(*q)) / float(kNumElements));
 
   uint32_t i = 0;
   while (q->size() != q->capacity()) q->push(++i);
@@ -59,11 +59,28 @@ int read_sham() {
   TRACE_VAR(q->capacity());
   TRACE_VAR(q->empty());
   while (!q->empty()) {
-    // uint32_t i = *q->front();
     uint64_t i;
     q->pop(i);
     TRACE_VAR(i);
-    // q->pop();
+  }
+
+  return 0;
+}
+
+int read_sham_in_loop() {
+  while (true) {
+    sham::SharedMemoryBuffer shared_memory_buffer("/my_memory", kBufferSize,
+                                                sham::SharedMemoryBuffer::Type::kRead);
+    UintQueue* q = shared_memory_buffer.As<UintQueue>();
+    TRACE_VAR(q->size());
+    TRACE_VAR(q->capacity());
+    TRACE_VAR(q->empty());
+    size_t num_pops = 100;
+    while (--num_pops > 0) {
+      uint64_t i;
+      q->pop(i);
+      TRACE_VAR(i);
+    }
   }
 
   return 0;
@@ -74,5 +91,5 @@ int main(int argc, char** argv) {
   if (argc == 1)
     create_sham();
   else
-    read_sham();
+    read_sham_in_loop();
 }

@@ -14,7 +14,8 @@ class SharedMemoryBuffer {
 
   ~SharedMemoryBuffer() {
     munmap(buffer_, capacity_);
-    shm_unlink(name_.c_str());
+    if(type_ == Type::kCreate)
+        shm_unlink(name_.c_str());
   }
 
   SharedMemoryBuffer() = delete;
@@ -47,6 +48,7 @@ class SharedMemoryBuffer {
   bool Read() {
     fd_ = shm_open(name_.c_str(), O_RDWR, 0600);
     if (fd_ == -1) {
+        std::cout <<  strerror(errno) << std::endl;
       perror("Can't open file descriptor");
       return 1;
     }
