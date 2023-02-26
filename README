@@ -1,3 +1,6 @@
+Cross-platform, shared memory friendly, spsc and mpmc lockless queues.
+
+Tested on Windows, MacOs and Linux. 
 
 mkdir build
 cd build

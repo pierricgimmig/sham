@@ -1,4 +1,28 @@
+/*
+MIT License - Copyright (c) 2023 Pierric Gimmig
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+ */
+
 #pragma once
+
+#include "sham_os.h"
 
 namespace sham {
 
@@ -7,30 +31,13 @@ namespace sham {
 class SharedMemoryBuffer {
  public:
   SharedMemoryBuffer(std::string_view name, size_t capacity) : name_(name), capacity_(capacity) {
-    fd_ = shm_open(name_.c_str(), O_RDWR | O_CREAT, 0600);
-    if (fd_ == -1) {
-      perror("Can't open memory fd");
-      return;
-    }
-
-    if ((ftruncate(fd_, capacity_)) == -1) {
-      perror("Can't truncate memory");
-      return;
-    }
-
-    /* map memory using our file descriptor */
-    void* ptr = mmap(NULL, capacity_, PROT_WRITE, MAP_SHARED, fd_, 0);
-    if (ptr == MAP_FAILED) {
-      perror("Memory mapping failed");
-      return;
-    }
-
-    buffer_ = static_cast<uint8_t*>(ptr);
+    handle_ = os::CreateFileMapping(name, capacity);
+    buffer_ = os::MapViewOfFile(handle_, capacity_);
   }
 
   ~SharedMemoryBuffer() {
-    if (buffer_ != nullptr) munmap(buffer_, capacity_);
-    if (fd_ != -1) shm_unlink(name_.c_str());
+    os::UnMapViewOfFile(buffer_, capacity_);
+    os::DestroyFileMapping(handle_, name_.c_str());
   }
 
   SharedMemoryBuffer() = delete;
@@ -63,7 +70,7 @@ class SharedMemoryBuffer {
   bool valid() const { return buffer_ != nullptr; }
 
  private:
-  int fd_ = -1;
+  FileHandle handle_ = kInvalidFileHandle;
   std::string name_;
   uint8_t* buffer_ = nullptr;
   size_t size_ = 0;
@@ -75,26 +82,15 @@ class SharedMemoryBufferView {
  public:
   SharedMemoryBufferView(std::string_view name, size_t capacity)
       : name_(name), capacity_(capacity) {
-    fd_ = shm_open(name_.c_str(), O_RDWR, 0600);
-    if (fd_ == -1) {
-      perror("Can't open file descriptor");
-      return;
-    }
-
-    void* ptr = mmap(NULL, capacity_, PROT_READ | PROT_WRITE, MAP_SHARED, fd_, 0);
-    if (ptr == MAP_FAILED) {
-      perror("Memory mapping failed");
-      return;
-    }
-
-    buffer_ = static_cast<uint8_t*>(ptr);
+    handle_ = os::OpenFileMapping(name);
+    buffer_ = os::MapViewOfFile(handle_, capacity);
   }
 
   SharedMemoryBufferView() = delete;
   SharedMemoryBufferView(const SharedMemoryBuffer&) = delete;
   SharedMemoryBufferView& operator=(const SharedMemoryBuffer&) = delete;
 
-  ~SharedMemoryBufferView() { munmap(buffer_, capacity_); }
+  ~SharedMemoryBufferView() { os::UnMapViewOfFile(buffer_, capacity_); }
 
   template <typename T, typename... Args>
   T* As(size_t offset = 0) {
@@ -107,7 +103,7 @@ class SharedMemoryBufferView {
   bool valid() const { return buffer_ != nullptr; }
 
  private:
-  int fd_ = -1;
+  FileHandle handle_ = kInvalidFileHandle;
   std::string name_;
   uint8_t* buffer_ = nullptr;
   size_t capacity_ = 0;

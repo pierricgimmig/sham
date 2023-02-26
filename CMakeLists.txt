@@ -3,4 +3,4 @@ project(sham CXX)
 
 set (CMAKE_CXX_STANDARD 20)
 
-add_executable(sham main.cpp)
+add_executable(sham sham_test.cpp)
