@@ -61,7 +61,6 @@ int create_sham() {
   }
 
   std::cout << "Queue is empty!" << std::endl;
-
   return 0;
 }
 
@@ -72,12 +71,13 @@ int read_sham() {
   TRACE_VAR(q->size());
   TRACE_VAR(q->capacity());
   TRACE_VAR(q->empty());
+  uint64_t i;
   while (!q->empty()) {
-    uint64_t i;
     q->pop(i);
-    TRACE_VAR(i);
   }
+  TRACE_VAR(i);
 
+  std::cout << "Queue is empty!" << std::endl;
   return 0;
 }
 
@@ -89,11 +89,11 @@ int read_sham_in_loop() {
     TRACE_VAR(q->capacity());
     TRACE_VAR(q->empty());
     size_t num_pops = 100;
+    uint64_t i;
     while (--num_pops > 0) {
-      uint64_t i;
       q->pop(i);
-      TRACE_VAR(i);
     }
+    TRACE_VAR(i);
   }
 
   return 0;
@@ -104,5 +104,5 @@ int main(int argc, char** argv) {
   if (argc == 1)
     create_sham();
   else
-    read_sham_in_loop();
+    read_sham();
 }
