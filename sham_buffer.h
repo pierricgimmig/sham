@@ -58,7 +58,7 @@ class SharedMemoryBuffer {
     return new (buffer)(T)(std::forward<Args>(args)...);
   }
 
-  template <typename T, typename... Args>
+  template <typename T>
   T* As(size_t offset = 0) {
     if (offset + sizeof(T) > capacity_) return nullptr;
     return reinterpret_cast<T*>(buffer_ + offset);
@@ -92,7 +92,7 @@ class SharedMemoryBufferView {
 
   ~SharedMemoryBufferView() { os::UnMapViewOfFile(buffer_, capacity_); }
 
-  template <typename T, typename... Args>
+  template <typename T>
   T* As(size_t offset = 0) {
     if (offset + sizeof(T) > capacity_) return nullptr;
     return reinterpret_cast<T*>(buffer_ + offset);
