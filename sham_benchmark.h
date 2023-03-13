@@ -30,20 +30,10 @@ SOFTWARE.
 
 namespace sham {
 
-inline double OperationsPerSecond(uint64_t num_operations, uint64_t duration_ns);
-inline double MillionOperationsPerSecond(uint64_t num_operations, uint64_t duration_ns);
-
 struct Element {
   uint64_t thread_id;
   uint64_t timestamp_ns;
   uint64_t value;
-};
-
-// Stores result of benchmark. Aligned on cacheline boundary to eliminate false sharing.
-struct alignas(64) ThreadResult {
-  uint64_t id = 0;
-  uint64_t num_operations = 0;
-  uint64_t duration_ns = 0;
 };
 
 template <typename QueueT>
@@ -56,14 +46,21 @@ class Benchmark {
         pop_threads_(num_pop_threads),
         pop_results_(num_pop_threads) {
     queue_ = std::make_unique<QueueT>();
-    std::thread push_thread(&Benchmark::LaunchPushThreads, this);
-    std::thread pop_thread(&Benchmark::LaunchPopThreads, this);
-    push_thread.join();
-    pop_thread.join();
+    std::thread push_setup_thread(&Benchmark::LaunchPushThreads, this);
+    std::thread pop_setup_thread(&Benchmark::LaunchPopThreads, this);
+    push_setup_thread.join();
+    pop_setup_thread.join();
     Print();
   }
 
  private:
+  // Aligned on cacheline boundary to eliminate false sharing when stored contiguously.
+  struct alignas(64) ThreadResult {
+    uint64_t id = 0;
+    uint64_t num_operations = 0;
+    uint64_t duration_ns = 0;
+  };
+
   void LaunchPushThreads() {
     for (size_t i = 0; i < push_threads_.size(); ++i) {
       push_threads_[i] = std::thread(&Benchmark::PushThread, this, i, &push_results_[i]);
@@ -118,6 +115,11 @@ class Benchmark {
     BusyWaitForAllThreads();
   }
 
+  static double MillionOperationsPerSecond(uint64_t num_operations, uint64_t duration_ns) {
+    double seconds = static_cast<double>(duration_ns) * 0.000'000'0001;
+    return (static_cast<double>(num_operations) / seconds) * 0.000'0001;
+  }
+
   void Print() {
     for (ThreadResult& io : push_results_) {
       std::cout << "Push thread[" << io.id << "] pushed " << io.num_operations << " elements"
@@ -154,12 +156,4 @@ class Benchmark {
   uint64_t num_popped_elements_ = 0;
 };
 
-double OperationsPerSecond(uint64_t num_operations, uint64_t duration_ns) {
-  double seconds = static_cast<double>(duration_ns) * 0.000'000'0001;
-  return static_cast<double>(num_operations) / seconds;
-}
-double MillionOperationsPerSecond(uint64_t num_operations, uint64_t duration_ns) {
-  return OperationsPerSecond(num_operations, duration_ns) * 0.000'0001;
-}
-
-}
+}  // namespace sham
