@@ -55,7 +55,7 @@ inline void UnMapViewOfFile(uint8_t* address, size_t size);
 #ifdef _WIN32
 FileHandle sham::os::CreateFileMapping(std::string_view name, size_t capacity) {
   std::string map_name(name);
-  FileHandle handle = ::CreateFileMapping(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0,
+  FileHandle handle = ::CreateFileMappingA(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0,
                                           static_cast<DWORD>(capacity), map_name.c_str());
 
   if (handle == nullptr) {
@@ -66,7 +66,7 @@ FileHandle sham::os::CreateFileMapping(std::string_view name, size_t capacity) {
 
 FileHandle sham::os::OpenFileMapping(std::string_view name) {
   std::string map_name(name);
-  FileHandle handle = ::OpenFileMapping(FILE_MAP_ALL_ACCESS, FALSE, map_name.c_str());
+  FileHandle handle = ::OpenFileMappingA(FILE_MAP_ALL_ACCESS, FALSE, map_name.c_str());
 
   if (handle == nullptr) {
     std::cout << "Could not open file mapping for " << name << ":" << GetLastError() << std::endl;

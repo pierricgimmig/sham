@@ -60,44 +60,47 @@ class Benchmark {
   };
 
   struct Result {
-    Result(size_t size) : threads_(size), results_(size) {}
-    double MillionOperationsPerSecond() {
-      double seconds = static_cast<double>(time_ns_) * 0.000'000'0001;
-      return (static_cast<double>(num_operations_) / seconds) * 0.000'0001;
+    Result(size_t size) : threads(size), results(size) {}
+    double MillionOperationsPerSecond() const {
+      double seconds = static_cast<double>(duration_ns) * 0.000'000'0001;
+      return (static_cast<double>(TotalNumOperations()) / seconds) * 0.000'0001;
     }
-    std::vector<std::thread> threads_;
-    std::vector<ThreadResult> results_;
-    uint64_t time_ns_ = 0;
-    uint64_t num_operations_ = 0;
+    uint64_t TotalNumOperations() const {
+      uint64_t num_ops = 0;
+      for (const ThreadResult& result : results) num_ops += result.num_operations;
+      return num_ops;
+    }
+    std::vector<std::thread> threads;
+    std::vector<ThreadResult> results;
+    uint64_t duration_ns = 0;
   };
 
   void LaunchPushThreads() {
-    for (size_t i = 0; i < push_result_.results_.size(); ++i) {
-      push_result_.threads_[i] =
-          std::thread(&Benchmark::PushThread, this, i, &push_result_.results_[i]);
+    for (size_t i = 0; i < push_result_.results.size(); ++i) {
+      push_result_.threads[i] =
+          std::thread(&Benchmark::PushThread, this, i, &push_result_.results[i]);
     }
     BusyWaitForAllThreads();
-    ScopeTimer timer(&push_result_.time_ns_);
-    for (auto& thread : push_result_.threads_) {
+    ScopeTimer timer(&push_result_.duration_ns);
+    for (auto& thread : push_result_.threads) {
       thread.join();
     }
   }
 
   void LaunchPopThreads() {
-    for (size_t i = 0; i < pop_result_.results_.size(); ++i) {
-      pop_result_.threads_[i] =
-          std::thread(&Benchmark::PopThread, this, i, &pop_result_.results_[i]);
+    for (size_t i = 0; i < pop_result_.results.size(); ++i) {
+      pop_result_.threads[i] = std::thread(&Benchmark::PopThread, this, i, &pop_result_.results[i]);
     }
     BusyWaitForAllThreads();
-    ScopeTimer timer(&pop_result_.time_ns_);
-    for (auto& thread : pop_result_.threads_) {
+    ScopeTimer timer(&pop_result_.duration_ns);
+    for (auto& thread : pop_result_.threads) {
       thread.join();
     }
   }
 
   void PushThread(size_t id, ThreadResult* result) {
     result->id = id;
-    size_t push_per_thread = queue_->capacity() / push_result_.threads_.size();
+    size_t push_per_thread = queue_->capacity() / push_result_.threads.size();
     RegisterAndBusyWaitForAllThreads();
     ScopeTimer timer(&result->duration_ns);
     for (size_t i = 0; i < push_per_thread; ++i) {
@@ -128,20 +131,16 @@ class Benchmark {
   }
 
   void Print() {
-    for (ThreadResult& io : push_result_.results_) {
-      std::cout << "Push thread[" << io.id << "] pushed " << io.num_operations << " elements"
-                << std::endl;
-      push_result_.num_operations_ += io.num_operations;
+    for (ThreadResult& result : push_result_.results) {
+      std::cout << "Push thread[" << result.id << "] pushed " << result.num_operations
+                << " elements" << std::endl;
     }
-    std::cout << "Total pushed: " << push_result_.num_operations_ << std::endl;
-
-    uint64_t num_popped = 0;
-    for (ThreadResult& io : pop_result_.results_) {
-      std::cout << "Pop thread[" << io.id << "] popped " << io.num_operations << " elements"
+    std::cout << "Total pushed: " << push_result_.TotalNumOperations() << std::endl;
+    for (ThreadResult& result : pop_result_.results) {
+      std::cout << "Pop thread[" << result.id << "] popped " << result.num_operations << " elements"
                 << std::endl;
-      pop_result_.num_operations_ += io.num_operations;
     }
-    std::cout << "Total popped: " << pop_result_.num_operations_ << std::endl;
+    std::cout << "Total popped: " << pop_result_.TotalNumOperations() << std::endl;
     std::cout << "Push/Pop rates " << push_result_.MillionOperationsPerSecond() << "/"
               << pop_result_.MillionOperationsPerSecond() << std::endl;
   }
