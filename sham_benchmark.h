@@ -41,10 +41,8 @@ class Benchmark {
  public:
   Benchmark(size_t num_push_threads, size_t num_pop_threads)
       : num_unregistered_threads_(num_push_threads + num_pop_threads),
-        push_threads_(num_push_threads),
-        push_results_(num_push_threads),
-        pop_threads_(num_pop_threads),
-        pop_results_(num_pop_threads) {
+        push_result_(num_push_threads),
+        pop_result_(num_pop_threads) {
     queue_ = std::make_unique<QueueT>();
     std::thread push_setup_thread(&Benchmark::LaunchPushThreads, this);
     std::thread pop_setup_thread(&Benchmark::LaunchPopThreads, this);
@@ -61,31 +59,45 @@ class Benchmark {
     uint64_t duration_ns = 0;
   };
 
+  struct Result {
+    Result(size_t size) : threads_(size), results_(size) {}
+    double MillionOperationsPerSecond() {
+      double seconds = static_cast<double>(time_ns_) * 0.000'000'0001;
+      return (static_cast<double>(num_operations_) / seconds) * 0.000'0001;
+    }
+    std::vector<std::thread> threads_;
+    std::vector<ThreadResult> results_;
+    uint64_t time_ns_ = 0;
+    uint64_t num_operations_ = 0;
+  };
+
   void LaunchPushThreads() {
-    for (size_t i = 0; i < push_threads_.size(); ++i) {
-      push_threads_[i] = std::thread(&Benchmark::PushThread, this, i, &push_results_[i]);
+    for (size_t i = 0; i < push_result_.results_.size(); ++i) {
+      push_result_.threads_[i] =
+          std::thread(&Benchmark::PushThread, this, i, &push_result_.results_[i]);
     }
     BusyWaitForAllThreads();
-    ScopeTimer timer(&push_time_ns_);
-    for (auto& thread : push_threads_) {
+    ScopeTimer timer(&push_result_.time_ns_);
+    for (auto& thread : push_result_.threads_) {
       thread.join();
     }
   }
 
   void LaunchPopThreads() {
-    for (size_t i = 0; i < pop_threads_.size(); ++i) {
-      pop_threads_[i] = std::thread(&Benchmark::PopThread, this, i, &pop_results_[i]);
+    for (size_t i = 0; i < pop_result_.results_.size(); ++i) {
+      pop_result_.threads_[i] =
+          std::thread(&Benchmark::PopThread, this, i, &pop_result_.results_[i]);
     }
     BusyWaitForAllThreads();
-    ScopeTimer timer(&pop_time_ns_);
-    for (auto& thread : pop_threads_) {
+    ScopeTimer timer(&pop_result_.time_ns_);
+    for (auto& thread : pop_result_.threads_) {
       thread.join();
     }
   }
 
   void PushThread(size_t id, ThreadResult* result) {
     result->id = id;
-    size_t push_per_thread = queue_->capacity() / push_threads_.size();
+    size_t push_per_thread = queue_->capacity() / push_result_.threads_.size();
     RegisterAndBusyWaitForAllThreads();
     ScopeTimer timer(&result->duration_ns);
     for (size_t i = 0; i < push_per_thread; ++i) {
@@ -115,45 +127,31 @@ class Benchmark {
     BusyWaitForAllThreads();
   }
 
-  static double MillionOperationsPerSecond(uint64_t num_operations, uint64_t duration_ns) {
-    double seconds = static_cast<double>(duration_ns) * 0.000'000'0001;
-    return (static_cast<double>(num_operations) / seconds) * 0.000'0001;
-  }
-
   void Print() {
-    for (ThreadResult& io : push_results_) {
+    for (ThreadResult& io : push_result_.results_) {
       std::cout << "Push thread[" << io.id << "] pushed " << io.num_operations << " elements"
                 << std::endl;
-      num_pushed_elements_ += io.num_operations;
+      push_result_.num_operations_ += io.num_operations;
     }
-    std::cout << "Total pushed: " << num_pushed_elements_ << std::endl;
+    std::cout << "Total pushed: " << push_result_.num_operations_ << std::endl;
 
     uint64_t num_popped = 0;
-    for (ThreadResult& io : pop_results_) {
+    for (ThreadResult& io : pop_result_.results_) {
       std::cout << "Pop thread[" << io.id << "] popped " << io.num_operations << " elements"
                 << std::endl;
-      num_popped_elements_ += io.num_operations;
+      pop_result_.num_operations_ += io.num_operations;
     }
-    std::cout << "Total popped: " << num_popped_elements_ << std::endl;
-
-    double push_rate = MillionOperationsPerSecond(num_pushed_elements_, push_time_ns_);
-    double pop_rate = MillionOperationsPerSecond(num_popped_elements_, pop_time_ns_);
-    std::cout << "Push/Pop rates " << push_rate << "/" << pop_rate << std::endl;
+    std::cout << "Total popped: " << pop_result_.num_operations_ << std::endl;
+    std::cout << "Push/Pop rates " << push_result_.MillionOperationsPerSecond() << "/"
+              << pop_result_.MillionOperationsPerSecond() << std::endl;
   }
 
  private:
   std::unique_ptr<QueueT> queue_;
   std::atomic<size_t> num_unregistered_threads_;
 
-  std::vector<std::thread> push_threads_;
-  std::vector<ThreadResult> push_results_;
-  uint64_t push_time_ns_ = 0;
-  uint64_t num_pushed_elements_ = 0;
-
-  std::vector<std::thread> pop_threads_;
-  std::vector<ThreadResult> pop_results_;
-  uint64_t pop_time_ns_ = 0;
-  uint64_t num_popped_elements_ = 0;
+  Result push_result_;
+  Result pop_result_;
 };
 
 }  // namespace sham
