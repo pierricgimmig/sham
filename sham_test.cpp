@@ -39,8 +39,6 @@ SOFTWARE.
 #include "sham_queue_spsc.h"
 #include "sham_timer.h"
 
-#define TRACE_VAR(x) std::cout << #x << " = " << x << std::endl
-
 constexpr size_t kBufferSize = 8 * 1024 * 1024;
 constexpr size_t kNumElements = 64 * 1024;
 

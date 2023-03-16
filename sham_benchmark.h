@@ -20,12 +20,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
  */
 
+#include <format>
 #include <iostream>
 #include <memory>
 #include <string>
 #include <thread>
 #include <vector>
 
+#include "sham_format.h"
 #include "sham_timer.h"
 
 namespace sham {
@@ -41,8 +43,8 @@ class Benchmark {
  public:
   Benchmark(size_t num_push_threads, size_t num_pop_threads)
       : num_unregistered_threads_(num_push_threads + num_pop_threads),
-        push_result_(num_push_threads),
-        pop_result_(num_pop_threads) {
+        push_result_("push", num_push_threads),
+        pop_result_("pop", num_pop_threads) {
     queue_ = std::make_unique<QueueT>();
     std::thread push_setup_thread(&Benchmark::LaunchPushThreads, this);
     std::thread pop_setup_thread(&Benchmark::LaunchPopThreads, this);
@@ -60,7 +62,7 @@ class Benchmark {
   };
 
   struct Result {
-    Result(size_t size) : threads(size), results(size) {}
+    Result(std::string_view name, size_t size) : name(name), threads(size), results(size) {}
     double MillionOperationsPerSecond() const {
       double seconds = static_cast<double>(duration_ns) * 0.000'000'0001;
       return (static_cast<double>(TotalNumOperations()) / seconds) * 0.000'0001;
@@ -70,6 +72,13 @@ class Benchmark {
       for (const ThreadResult& result : results) num_ops += result.num_operations;
       return num_ops;
     }
+    void Print() const {
+      for (const ThreadResult& result : results) {
+        std::cout << StrFormat("%s[%u]: %u ops\n", name.c_str(), result.id, result.num_operations);
+      }
+      std::cout << StrFormat("%s total ops: %u\n", name.c_str(), TotalNumOperations());
+    }
+    std::string name;
     std::vector<std::thread> threads;
     std::vector<ThreadResult> results;
     uint64_t duration_ns = 0;
@@ -131,18 +140,10 @@ class Benchmark {
   }
 
   void Print() {
-    for (ThreadResult& result : push_result_.results) {
-      std::cout << "Push thread[" << result.id << "] pushed " << result.num_operations
-                << " elements" << std::endl;
-    }
-    std::cout << "Total pushed: " << push_result_.TotalNumOperations() << std::endl;
-    for (ThreadResult& result : pop_result_.results) {
-      std::cout << "Pop thread[" << result.id << "] popped " << result.num_operations << " elements"
-                << std::endl;
-    }
-    std::cout << "Total popped: " << pop_result_.TotalNumOperations() << std::endl;
-    std::cout << "Push/Pop rates " << push_result_.MillionOperationsPerSecond() << "/"
-              << pop_result_.MillionOperationsPerSecond() << std::endl;
+    push_result_.Print();
+    pop_result_.Print();
+    std::cout << StrFormat("Push/Pop rates: %f/%f M/s\n", push_result_.MillionOperationsPerSecond(),
+                           pop_result_.MillionOperationsPerSecond());
   }
 
  private:
