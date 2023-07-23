@@ -4,7 +4,14 @@ Tested on Windows, MacOs and Linux.
 
 mkdir build
 cd build
-cmake -DCMAKE_BUILD_TYPE=Debug ..
+cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
 cmake --build .
-./sham
+
+Running benchmarks:
+./sham  
+
+Running writer process
+./sham w
+
+Running reader process
 ./sham r

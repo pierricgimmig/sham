@@ -87,9 +87,14 @@ void sham::os::UnMapViewOfFile(uint8_t* address, size_t /*size*/) { UnmapViewOfF
 #else
 FileHandle sham::os::CreateFileMapping(std::string_view name, size_t size) {
   std::string map_name(name);
-  FileHandle handle = shm_open(map_name.c_str(), O_RDWR | O_CREAT, 0600);
+  FileHandle handle = shm_open(map_name.c_str(), O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
   if (handle == -1) {
     perror("Can't open memory fd");
+  }
+
+  // Change permission of the shared memory to make sure that non-root processes can access it.
+  if (fchmod(handle, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH) == -1 ) {
+    perror("Can't change permission on fd");
   }
 
   if ((ftruncate(handle, size)) == -1) {

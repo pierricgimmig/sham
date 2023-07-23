@@ -30,8 +30,12 @@ namespace sham {
 // when the SharedMemoryBuffer is destroyed.
 class SharedMemoryBuffer {
  public:
-  SharedMemoryBuffer(std::string_view name, size_t capacity) : name_(name), capacity_(capacity) {
-    handle_ = os::CreateFileMapping(name, capacity);
+  enum class Type { kInvalid, kCreate, kAccessExisting };
+
+  SharedMemoryBuffer(std::string_view name, size_t capacity, Type type)
+      : name_(name), capacity_(capacity) {
+    handle_ =
+        type == Type::kCreate ? os::CreateFileMapping(name, capacity) : os::OpenFileMapping(name);
     buffer_ = os::MapViewOfFile(handle_, capacity_);
   }
 
@@ -74,38 +78,6 @@ class SharedMemoryBuffer {
   std::string name_;
   uint8_t* buffer_ = nullptr;
   size_t size_ = 0;
-  size_t capacity_ = 0;
-};
-
-// Mutable view of existing shared memory buffer.
-class SharedMemoryBufferView {
- public:
-  SharedMemoryBufferView(std::string_view name, size_t capacity)
-      : name_(name), capacity_(capacity) {
-    handle_ = os::OpenFileMapping(name);
-    buffer_ = os::MapViewOfFile(handle_, capacity);
-  }
-
-  SharedMemoryBufferView() = delete;
-  SharedMemoryBufferView(const SharedMemoryBuffer&) = delete;
-  SharedMemoryBufferView& operator=(const SharedMemoryBuffer&) = delete;
-
-  ~SharedMemoryBufferView() { os::UnMapViewOfFile(buffer_, capacity_); }
-
-  template <typename T>
-  T* As(size_t offset = 0) {
-    if (offset + sizeof(T) > capacity_) return nullptr;
-    return reinterpret_cast<T*>(buffer_ + offset);
-  }
-
-  uint8_t* data() { return buffer_; }
-  size_t capacity() const { return capacity_; }
-  bool valid() const { return buffer_ != nullptr; }
-
- private:
-  FileHandle handle_ = kInvalidFileHandle;
-  std::string name_;
-  uint8_t* buffer_ = nullptr;
   size_t capacity_ = 0;
 };
 

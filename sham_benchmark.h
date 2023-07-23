@@ -62,7 +62,8 @@ class Benchmark {
   };
 
   struct Result {
-    Result(std::string_view name, size_t size) : name(name), threads(size), results(size) {}
+    Result(std::string_view name, size_t size)
+        : name(name), size(size), threads(size), results(size) {}
     double MillionOperationsPerSecond() const {
       double seconds = static_cast<double>(duration_ns) * 0.000'000'0001;
       return (static_cast<double>(TotalNumOperations()) / seconds) * 0.000'0001;
@@ -74,11 +75,13 @@ class Benchmark {
     }
     void Print() const {
       for (const ThreadResult& result : results) {
-        std::cout << StrFormat("%s[%u]: %u ops\n", name.c_str(), result.id, result.num_operations);
+        std::cout << StrFormat("%s[%u/%u]: %u ops\n", name.c_str(), result.id, threads.size(),
+                               result.num_operations);
       }
       std::cout << StrFormat("%s total ops: %u\n", name.c_str(), TotalNumOperations());
     }
     std::string name;
+    size_t size = 0;
     std::vector<std::thread> threads;
     std::vector<ThreadResult> results;
     uint64_t duration_ns = 0;
@@ -87,7 +90,7 @@ class Benchmark {
   void LaunchPushThreads() {
     for (size_t i = 0; i < push_result_.results.size(); ++i) {
       push_result_.threads[i] =
-          std::thread(&Benchmark::PushThread, this, i, &push_result_.results[i]);
+          std::thread(&Benchmark::PushThread, this, i + 1, &push_result_.results[i]);
     }
     BusyWaitForAllThreads();
     ScopeTimer timer(&push_result_.duration_ns);
@@ -98,9 +101,9 @@ class Benchmark {
 
   void LaunchPopThreads() {
     for (size_t i = 0; i < pop_result_.results.size(); ++i) {
-      pop_result_.threads[i] = std::thread(&Benchmark::PopThread, this, i, &pop_result_.results[i]);
+      pop_result_.threads[i] =
+          std::thread(&Benchmark::PopThread, this, i + 1, &pop_result_.results[i]);
     }
-    BusyWaitForAllThreads();
     ScopeTimer timer(&pop_result_.duration_ns);
     for (auto& thread : pop_result_.threads) {
       thread.join();
@@ -122,9 +125,10 @@ class Benchmark {
     Element element;
     RegisterAndBusyWaitForAllThreads();
     ScopeTimer timer(&result->duration_ns);
-    while (!queue_->empty()) {
+    while (num_popped_elements_ < queue_->capacity()) {
       if (queue_->try_pop(element)) {
         ++result->num_operations;
+        ++num_popped_elements_;
       }
     }
   }
@@ -140,14 +144,17 @@ class Benchmark {
   }
 
   void Print() {
-    push_result_.Print();
-    pop_result_.Print();
+    std::cout << StrFormat("Threads: %u push, %u pull\n", push_result_.size, pop_result_.size);
     std::cout << StrFormat("Push/Pop rates: %f/%f M/s\n", push_result_.MillionOperationsPerSecond(),
                            pop_result_.MillionOperationsPerSecond());
+    push_result_.Print();
+    pop_result_.Print();
+    std::cout << std::endl;
   }
 
  private:
   std::unique_ptr<QueueT> queue_;
+  std::atomic<size_t> num_popped_elements_;
   std::atomic<size_t> num_unregistered_threads_;
 
   Result push_result_;

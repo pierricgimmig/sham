@@ -49,7 +49,8 @@ using UintQueue = sham::mpmc::Queue<uint64_t, kNumElements>;
 using ElemQueue = sham::mpmc::Queue<Element, 8 * 1024 * 1024>;
 
 int create_sham() {
-  sham::SharedMemoryBuffer shared_memory_buffer("/my_memory", kBufferSize);
+  sham::SharedMemoryBuffer shared_memory_buffer("/my_memory", kBufferSize,
+                                                SharedMemoryBuffer::Type::kCreate);
 
   TRACE_VAR(shared_memory_buffer.size());
   UintQueue* q = shared_memory_buffer.Allocate<UintQueue>();
@@ -73,7 +74,8 @@ int create_sham() {
 }
 
 int read_sham() {
-  sham::SharedMemoryBufferView shared_memory_buffer_view("/my_memory", kBufferSize);
+  sham::SharedMemoryBuffer shared_memory_buffer_view(
+      "/my_memory", kBufferSize, sham::SharedMemoryBuffer::Type::kAccessExisting);
   UintQueue* q = shared_memory_buffer_view.As<UintQueue>();
 
   TRACE_VAR(q->size());
@@ -91,7 +93,8 @@ int read_sham() {
 
 int read_sham_in_loop() {
   while (true) {
-    sham::SharedMemoryBufferView shared_memory_buffer_view("/my_memory", kBufferSize);
+    sham::SharedMemoryBuffer shared_memory_buffer_view(
+        "/my_memory", kBufferSize, sham::SharedMemoryBuffer::Type::kAccessExisting);
     UintQueue* q = shared_memory_buffer_view.As<UintQueue>();
     TRACE_VAR(q->size());
     TRACE_VAR(q->capacity());
@@ -107,16 +110,24 @@ int read_sham_in_loop() {
   return 0;
 }
 
-int main(int argc, char** argv) {
+void run_benchmark() {
   std::vector<std::pair<size_t, size_t>> pairs = {{1, 1}, {1, 1},   {2, 2},  {4, 4},
                                                   {8, 8}, {16, 16}, {16, 1}, {32, 1}};
   for (auto [num_push_threads, num_pop_threads] : pairs) {
     Benchmark<ElemQueue> b(num_push_threads, num_pop_threads);
   }
+}
 
+int main(int argc, char** argv) {
   std::cout << "hello, sham!\n";
-  if (argc == 1)
+  if (argc == 1) {
+    std::cout << "Running benchmark...\n";
+    run_benchmark();
+  } else if (argc == 2 && argv[1][0] == 'w') {
+    std::cout << "Creating and writing shared memory...\n";
     create_sham();
-  else
+  } else if (argc == 2 && argv[1][0] == 'r') {
+    std::cout << "Opening and reading shared memory...\n";
     read_sham();
+  }
 }
