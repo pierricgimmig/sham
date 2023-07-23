@@ -95,7 +95,7 @@ void sham::UnMapViewOfFile(uint8_t* address, size_t /*size*/) { UnmapViewOfFile(
 sham::FileHandle sham::CreateFileMapping(std::string_view name, size_t size) {
   std::string map_name(name);
   sham::FileHandle handle = shm_open(map_name.c_str(), O_RDWR | O_CREAT,
-                               S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+                                     S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
   if (handle == -1) {
     perror("Can't open memory fd");
   }
