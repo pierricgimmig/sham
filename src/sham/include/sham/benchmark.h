@@ -26,8 +26,8 @@ SOFTWARE.
 #include <thread>
 #include <vector>
 
-#include "sham_format.h"
-#include "sham_timer.h"
+#include "sham/string_format.h"
+#include "sham/timer.h"
 
 namespace sham {
 
@@ -92,7 +92,7 @@ class Benchmark {
           std::thread(&Benchmark::PushThread, this, i + 1, &push_result_.results[i]);
     }
     BusyWaitForAllThreads();
-    ScopeTimer timer(&push_result_.duration_ns);
+    Timer timer(&push_result_.duration_ns);
     for (auto& thread : push_result_.threads) {
       thread.join();
     }
@@ -103,7 +103,7 @@ class Benchmark {
       pop_result_.threads[i] =
           std::thread(&Benchmark::PopThread, this, i + 1, &pop_result_.results[i]);
     }
-    ScopeTimer timer(&pop_result_.duration_ns);
+    Timer timer(&pop_result_.duration_ns);
     for (auto& thread : pop_result_.threads) {
       thread.join();
     }
@@ -113,7 +113,7 @@ class Benchmark {
     result->id = id;
     size_t push_per_thread = queue_->capacity() / push_result_.threads.size();
     RegisterAndBusyWaitForAllThreads();
-    ScopeTimer timer(&result->duration_ns);
+    Timer timer(&result->duration_ns);
     for (size_t i = 0; i < push_per_thread; ++i) {
       if (queue_->try_push({id, id, i})) ++result->num_operations;
     }
@@ -123,7 +123,7 @@ class Benchmark {
     result->id = id;
     Element element;
     RegisterAndBusyWaitForAllThreads();
-    ScopeTimer timer(&result->duration_ns);
+    Timer timer(&result->duration_ns);
     while (num_popped_elements_ < queue_->capacity()) {
       if (queue_->try_pop(element)) {
         ++result->num_operations;

@@ -33,11 +33,11 @@ SOFTWARE.
 #include <thread>
 #include <vector>
 
-#include "sham_benchmark.h"
-#include "sham_buffer.h"
-#include "sham_queue_mpmc.h"
-#include "sham_queue_spsc.h"
-#include "sham_timer.h"
+#include "sham/benchmark.h"
+#include "sham/queue_mpmc.h"
+#include "sham/queue_spsc.h"
+#include "sham/shared_memory_buffer.h"
+#include "sham/timer.h"
 
 constexpr size_t kBufferSize = 8 * 1024 * 1024;
 constexpr size_t kNumElements = 64 * 1024;

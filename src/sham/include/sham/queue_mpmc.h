@@ -235,6 +235,4 @@ class Queue {
 };
 }  // namespace mpmc
 
-// using MPMCQueue = mpmc::Queue<T, Allocator>;
-
 }  // namespace sham

@@ -22,7 +22,7 @@ SOFTWARE.
 
 #pragma once
 
-#include "sham_os.h"
+#include "sham/shared_memory.h"
 
 namespace sham {
 
@@ -34,14 +34,14 @@ class SharedMemoryBuffer {
 
   SharedMemoryBuffer(std::string_view name, size_t capacity, Type type)
       : name_(name), capacity_(capacity) {
-    handle_ =
-        type == Type::kCreate ? os::CreateFileMapping(name, capacity) : os::OpenFileMapping(name);
-    buffer_ = os::MapViewOfFile(handle_, capacity_);
+    handle_ = type == Type::kCreate ? sham::CreateFileMapping(name, capacity)
+                                    : sham::OpenFileMapping(name);
+    buffer_ = sham::MapViewOfFile(handle_, capacity_);
   }
 
   ~SharedMemoryBuffer() {
-    os::UnMapViewOfFile(buffer_, capacity_);
-    os::DestroyFileMapping(handle_, name_.c_str());
+    sham::UnMapViewOfFile(buffer_, capacity_);
+    sham::DestroyFileMapping(handle_, name_.c_str());
   }
 
   SharedMemoryBuffer() = delete;

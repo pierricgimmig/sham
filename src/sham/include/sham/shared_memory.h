@@ -26,20 +26,26 @@ SOFTWARE.
 
 #ifdef _WIN32
 #include <windows.h>
-using FileHandle = HANDLE;
-constexpr FileHandle kInvalidFileHandle = nullptr;
 #else
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#endif
+
+// Cross-platform interface for creating and accessing shared memory.
+namespace sham {
+
+#ifdef _WIN32
+#include <windows.h>
+using FileHandle = HANDLE;
+constexpr FileHandle kInvalidFileHandle = nullptr;
+#else
 using FileHandle = int;
 constexpr FileHandle kInvalidFileHandle = -1;
 #endif
 
-// Cross-platform interface for creating and accessing shared memory.
-namespace sham::os {
 // Create a new file mapping.
 inline FileHandle CreateFileMapping(std::string_view name, size_t size);
 // Open a view on an existing file mapping.
@@ -50,13 +56,12 @@ inline void DestroyFileMapping(FileHandle file_handle, std::string_view name);
 inline uint8_t* MapViewOfFile(FileHandle file_handle, size_t size);
 // Unmap file from memory.
 inline void UnMapViewOfFile(uint8_t* address, size_t size);
-}  // namespace sham::os
 
 #ifdef _WIN32
-FileHandle sham::os::CreateFileMapping(std::string_view name, size_t capacity) {
+sham::FileHandle CreateFileMapping(std::string_view name, size_t capacity) {
   std::string map_name(name);
-  FileHandle handle = ::CreateFileMappingA(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0,
-                                           static_cast<DWORD>(capacity), map_name.c_str());
+  sham::FileHandle handle = ::CreateFileMappingA(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0,
+                                                 static_cast<DWORD>(capacity), map_name.c_str());
 
   if (handle == nullptr) {
     std::cout << "Could not create file mapping for " << name << ":" << GetLastError() << std::endl;
@@ -64,7 +69,7 @@ FileHandle sham::os::CreateFileMapping(std::string_view name, size_t capacity) {
   return handle;
 }
 
-FileHandle sham::os::OpenFileMapping(std::string_view name) {
+sham::FileHandle OpenFileMapping(std::string_view name) {
   std::string map_name(name);
   FileHandle handle = ::OpenFileMappingA(FILE_MAP_ALL_ACCESS, FALSE, map_name.c_str());
 
@@ -74,18 +79,18 @@ FileHandle sham::os::OpenFileMapping(std::string_view name) {
   return handle;
 }
 
-void sham::os::DestroyFileMapping(FileHandle handle, std::string_view name) {
+void DestroyFileMapping(FileHandle handle, std::string_view name) {
   if (handle) CloseHandle(handle);
 }
 
-uint8_t* sham::os::MapViewOfFile(FileHandle file_handle, size_t size) {
+uint8_t* MapViewOfFile(FileHandle file_handle, size_t size) {
   LPCTSTR ptr = (LPTSTR)::MapViewOfFile(file_handle, FILE_MAP_ALL_ACCESS, 0, 0, size);
   return (uint8_t*)(ptr);
 }
 
-void sham::os::UnMapViewOfFile(uint8_t* address, size_t /*size*/) { UnmapViewOfFile(address); }
+void UnMapViewOfFile(uint8_t* address, size_t /*size*/) { UnmapViewOfFile(address); }
 #else
-FileHandle sham::os::CreateFileMapping(std::string_view name, size_t size) {
+sham::FileHandle CreateFileMapping(std::string_view name, size_t size) {
   std::string map_name(name);
   FileHandle handle = shm_open(map_name.c_str(), O_RDWR | O_CREAT,
                                S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
@@ -104,7 +109,7 @@ FileHandle sham::os::CreateFileMapping(std::string_view name, size_t size) {
   return handle;
 }
 
-FileHandle sham::os::OpenFileMapping(std::string_view name) {
+sham::FileHandle OpenFileMapping(std::string_view name) {
   std::string map_name(name);
   FileHandle handle = shm_open(map_name.c_str(), O_RDWR, 0600);
   if (handle == -1) {
@@ -113,20 +118,22 @@ FileHandle sham::os::OpenFileMapping(std::string_view name) {
   return handle;
 }
 
-void sham::os::DestroyFileMapping(FileHandle handle, std::string_view name) {
+void DestroyFileMapping(FileHandle handle, std::string_view name) {
   std::string map_name(name);
   if (handle != -1) shm_unlink(map_name.c_str());
 }
 
-uint8_t* sham::os::MapViewOfFile(FileHandle file_handle, size_t size) {
+uint8_t* MapViewOfFile(FileHandle file_handle, size_t size) {
   void* ptr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, file_handle, 0);
   if (ptr != MAP_FAILED) return static_cast<uint8_t*>(ptr);
   perror("Memory mapping failed");
   return static_cast<uint8_t*>(ptr);
 }
 
-void sham::os::UnMapViewOfFile(uint8_t* address, size_t size) {
+void UnMapViewOfFile(uint8_t* address, size_t size) {
   if (address == nullptr) return;
   munmap(address, size);
 }
+
+}  // namespace sham
 #endif

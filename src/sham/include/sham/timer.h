@@ -26,14 +26,14 @@ SOFTWARE.
 
 namespace sham {
 
-class ScopeTimer {
+class Timer {
  public:
-  ScopeTimer() = delete;
-  explicit ScopeTimer(uint64_t* output_ns) : output_ns_(output_ns) {
+  Timer() = delete;
+  explicit Timer(uint64_t* output_ns) : output_ns_(output_ns) {
     start_ = std::chrono::high_resolution_clock::now();
   }
 
-  ~ScopeTimer() {
+  ~Timer() {
     auto end = std::chrono::high_resolution_clock::now();
     *output_ns_ = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start_).count();
   }
