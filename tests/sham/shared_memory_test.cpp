@@ -2,7 +2,8 @@
 
 #include "gtest/gtest.h"
 
-constexpr const char* kSharedMemoryName = "shared_memory_test";
+static constexpr const char* kSharedMemoryName = "shared_memory_test";
+static constexpr const char* kChildMessage = "Hello World!";
 
 class SharedMemoryTest : public ::testing::Test {
  protected:
@@ -34,7 +35,6 @@ TEST_F(SharedMemoryTest, MapAndUnmap) {
 TEST_F(SharedMemoryTest, MultipleProcesses) {
   // Fork process.
   pid_t pid = fork();
-  constexpr const char* kChildMessage = "Hello World!";
 
   if (pid == 0) {
     // Child process..
