@@ -57,8 +57,10 @@ inline uint8_t* MapViewOfFile(FileHandle file_handle, size_t size);
 // Unmap file from memory.
 inline void UnMapViewOfFile(uint8_t* address, size_t size);
 
+}  // namespace sham
+
 #ifdef _WIN32
-sham::FileHandle CreateFileMapping(std::string_view name, size_t capacity) {
+sham::FileHandle sham::CreateFileMapping(std::string_view name, size_t capacity) {
   std::string map_name(name);
   sham::FileHandle handle = ::CreateFileMappingA(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0,
                                                  static_cast<DWORD>(capacity), map_name.c_str());
@@ -69,7 +71,7 @@ sham::FileHandle CreateFileMapping(std::string_view name, size_t capacity) {
   return handle;
 }
 
-sham::FileHandle OpenFileMapping(std::string_view name) {
+sham::FileHandle sham::OpenFileMapping(std::string_view name) {
   std::string map_name(name);
   FileHandle handle = ::OpenFileMappingA(FILE_MAP_ALL_ACCESS, FALSE, map_name.c_str());
 
@@ -79,20 +81,20 @@ sham::FileHandle OpenFileMapping(std::string_view name) {
   return handle;
 }
 
-void DestroyFileMapping(FileHandle handle, std::string_view name) {
+void sham::DestroyFileMapping(FileHandle handle, std::string_view name) {
   if (handle) CloseHandle(handle);
 }
 
-uint8_t* MapViewOfFile(FileHandle file_handle, size_t size) {
+uint8_t* sham::MapViewOfFile(FileHandle file_handle, size_t size) {
   LPCTSTR ptr = (LPTSTR)::MapViewOfFile(file_handle, FILE_MAP_ALL_ACCESS, 0, 0, size);
   return (uint8_t*)(ptr);
 }
 
-void UnMapViewOfFile(uint8_t* address, size_t /*size*/) { UnmapViewOfFile(address); }
+void sham::UnMapViewOfFile(uint8_t* address, size_t /*size*/) { UnmapViewOfFile(address); }
 #else
-sham::FileHandle CreateFileMapping(std::string_view name, size_t size) {
+sham::FileHandle sham::CreateFileMapping(std::string_view name, size_t size) {
   std::string map_name(name);
-  FileHandle handle = shm_open(map_name.c_str(), O_RDWR | O_CREAT,
+  sham::FileHandle handle = shm_open(map_name.c_str(), O_RDWR | O_CREAT,
                                S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
   if (handle == -1) {
     perror("Can't open memory fd");
@@ -109,7 +111,7 @@ sham::FileHandle CreateFileMapping(std::string_view name, size_t size) {
   return handle;
 }
 
-sham::FileHandle OpenFileMapping(std::string_view name) {
+sham::FileHandle sham::OpenFileMapping(std::string_view name) {
   std::string map_name(name);
   FileHandle handle = shm_open(map_name.c_str(), O_RDWR, 0600);
   if (handle == -1) {
@@ -118,22 +120,21 @@ sham::FileHandle OpenFileMapping(std::string_view name) {
   return handle;
 }
 
-void DestroyFileMapping(FileHandle handle, std::string_view name) {
+void sham::DestroyFileMapping(FileHandle handle, std::string_view name) {
   std::string map_name(name);
   if (handle != -1) shm_unlink(map_name.c_str());
 }
 
-uint8_t* MapViewOfFile(FileHandle file_handle, size_t size) {
+uint8_t* sham::MapViewOfFile(FileHandle file_handle, size_t size) {
   void* ptr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, file_handle, 0);
   if (ptr != MAP_FAILED) return static_cast<uint8_t*>(ptr);
   perror("Memory mapping failed");
   return static_cast<uint8_t*>(ptr);
 }
 
-void UnMapViewOfFile(uint8_t* address, size_t size) {
+void sham::UnMapViewOfFile(uint8_t* address, size_t size) {
   if (address == nullptr) return;
   munmap(address, size);
 }
 
-}  // namespace sham
 #endif
