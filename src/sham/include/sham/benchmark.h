@@ -52,6 +52,9 @@ class Benchmark {
     Print();
   }
 
+  size_t GetNumPushedElements() const { return push_result_.TotalNumOperations(); }
+  size_t GetNumPoppedElements() const { return pop_result_.TotalNumOperations(); }
+
  private:
   // Aligned on cacheline boundary to eliminate false sharing when stored contiguously.
   struct alignas(64) ThreadResult {
