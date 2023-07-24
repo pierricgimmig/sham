@@ -29,7 +29,7 @@ static constexpr size_t kQueueCapacity = 1 * 1024 * 1024;
 static constexpr size_t kNumElements = 8 * 1024 * 1024;
 using ElemQueue = sham::mpmc::Queue<sham::Element, kQueueCapacity>;
 
-TEST(MpmcQueue, SameNumberOfPushAndPopSingleElementQueue_8M_4_4) {
+TEST(MpmcQueue, SameNumberOfPushAndPopSingleElementQueue_1K_4_4) {
   constexpr size_t kSingleElementCapacity = 1;
   constexpr size_t kSmallNumElements = 1024;
   using SmallElemQueue = sham::mpmc::Queue<sham::Element, kSingleElementCapacity>;
