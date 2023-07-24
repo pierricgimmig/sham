@@ -40,10 +40,11 @@ struct Element {
 template <typename QueueT>
 class Benchmark {
  public:
-  Benchmark(size_t num_push_threads, size_t num_pop_threads)
+  Benchmark(size_t num_push_threads, size_t num_pop_threads, size_t num_elements_to_push)
       : num_unregistered_threads_(num_push_threads + num_pop_threads),
         push_result_("push", num_push_threads),
-        pop_result_("pop", num_pop_threads) {
+        pop_result_("pop", num_pop_threads),
+        num_elements_to_push_(num_elements_to_push) {
     queue_ = std::make_unique<QueueT>();
     std::thread push_setup_thread(&Benchmark::LaunchPushThreads, this);
     std::thread pop_setup_thread(&Benchmark::LaunchPopThreads, this);
@@ -114,11 +115,12 @@ class Benchmark {
 
   void PushThread(size_t id, ThreadResult* result) {
     result->id = id;
-    size_t push_per_thread = queue_->capacity() / push_result_.threads.size();
+    size_t push_per_thread = num_elements_to_push_ / push_result_.threads.size();
     RegisterAndBusyWaitForAllThreads();
     Timer timer(&result->duration_ns);
     for (size_t i = 0; i < push_per_thread; ++i) {
-      if (queue_->try_push({id, id, i})) ++result->num_operations;
+      queue_->push({id, id, i});
+      ++result->num_operations;
     }
   }
 
@@ -127,7 +129,7 @@ class Benchmark {
     Element element;
     RegisterAndBusyWaitForAllThreads();
     Timer timer(&result->duration_ns);
-    while (num_popped_elements_ < queue_->capacity()) {
+    while (num_popped_elements_ < num_elements_to_push_) {
       if (queue_->try_pop(element)) {
         ++result->num_operations;
         ++num_popped_elements_;
@@ -156,6 +158,7 @@ class Benchmark {
 
  private:
   std::unique_ptr<QueueT> queue_;
+  std::atomic<size_t> num_elements_to_push_;
   std::atomic<size_t> num_popped_elements_;
   std::atomic<size_t> num_unregistered_threads_;
 

@@ -217,7 +217,7 @@ class Queue {
   /// until all reader and writer threads have been joined.
   bool empty() const noexcept { return size() <= 0; }
 
-  [[nodiscard]] size_t capacity() const noexcept { return kCapacity; }
+  [[nodiscard]] static size_t capacity() noexcept { return kCapacity; }
 
  private:
   constexpr size_t idx(size_t i) const noexcept { return i % kInternalCapacity; }
