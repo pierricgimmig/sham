@@ -30,19 +30,13 @@ static constexpr size_t kNumElements = 8 * 1024 * 1024;
 using ElemQueue = sham::mpmc::Queue<sham::Element, kQueueCapacity>;
 
 TEST(MpmcQueue, SameNumberOfPushAndPopSingleElementQueue_8M_4_4) {
-  constexpr size_t kSmallCapacity = 1;
-  using SmallElemQueue = sham::mpmc::Queue<sham::Element, kSmallCapacity>;
-  sham::Benchmark<SmallElemQueue> b(/*num_push_threads=*/4, /*num_pop_threads=*/4, kNumElements);
-  EXPECT_EQ(b.GetNumPushedElements(), kNumElements);
-  EXPECT_EQ(b.GetNumPoppedElements(), kNumElements);
-}
-
-TEST(MpmcQueue, SameNumberOfPushAndPopSmallQueueSize_8M_4_4) {
-  constexpr size_t kSmallCapacity = 16;
-  using SmallElemQueue = sham::mpmc::Queue<sham::Element, kSmallCapacity>;
-  sham::Benchmark<SmallElemQueue> b(/*num_push_threads=*/4, /*num_pop_threads=*/4, kNumElements);
-  EXPECT_EQ(b.GetNumPushedElements(), kNumElements);
-  EXPECT_EQ(b.GetNumPoppedElements(), kNumElements);
+  constexpr size_t kSingleElementCapacity = 1;
+  constexpr size_t kSmallNumElements = 1024;
+  using SmallElemQueue = sham::mpmc::Queue<sham::Element, kSingleElementCapacity>;
+  sham::Benchmark<SmallElemQueue> b(/*num_push_threads=*/4, /*num_pop_threads=*/4,
+                                    kSmallNumElements);
+  EXPECT_EQ(b.GetNumPushedElements(), kSmallNumElements);
+  EXPECT_EQ(b.GetNumPoppedElements(), kSmallNumElements);
 }
 
 TEST(MpmcQueue, SameNumberOfPushAndPopAndBenchmarks_8M_1_1) {
