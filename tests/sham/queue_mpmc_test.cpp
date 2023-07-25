@@ -25,58 +25,38 @@ SOFTWARE.
 #include "gtest/gtest.h"
 #include "sham/benchmark.h"
 
-static constexpr size_t kQueueCapacity = 1 * 1024 * 1024;
-static constexpr size_t kNumElements = 8 * 1024 * 1024;
+namespace {
+constexpr size_t kQueueCapacity = 1 * 1024 * 1024;
+constexpr size_t kNumElements = 8 * 1024 * 1024;
 using ElemQueue = sham::mpmc::Queue<sham::Element, kQueueCapacity>;
 
-TEST(MpmcQueue, SameNumberOfPushAndPopSingleElementQueue_1K_4_4) {
-  constexpr size_t kSingleElementCapacity = 1;
-  constexpr size_t kSmallNumElements = 1024;
-  using SmallElemQueue = sham::mpmc::Queue<sham::Element, kSingleElementCapacity>;
-  sham::Benchmark<SmallElemQueue> b(/*num_push_threads=*/4, /*num_pop_threads=*/4,
-                                    kSmallNumElements);
-  EXPECT_EQ(b.GetNumPushedElements(), kSmallNumElements);
-  EXPECT_EQ(b.GetNumPoppedElements(), kSmallNumElements);
+template <typename QueueT>
+void RunTest(size_t num_push_threads, size_t num_pop_threads, size_t num_elements_to_push) {
+  sham::Benchmark<QueueT> b(num_push_threads, num_pop_threads, num_elements_to_push);
+  b.Run();
+  EXPECT_EQ(b.GetNumPushedElements(), b.GetNumPoppedElements());
+  EXPECT_EQ(b.GetNumPushedElements(), num_elements_to_push);
+  EXPECT_TRUE(b.GetQueue()->empty());
+}
+}  // namespace
+
+TEST(MpmcQueue, SameNumberOfPushAndPopSingleElementQueue_4_4_1K) {
+  using SingleElemQueue = sham::mpmc::Queue<sham::Element, /*capacity=*/1>;
+  RunTest<SingleElemQueue>(4, 4, /*num_elements_to_push*/ 1024);
 }
 
-TEST(MpmcQueue, SameNumberOfPushAndPop_8M_1_1) {
-  sham::Benchmark<ElemQueue> b(/*num_push_threads=*/1, /*num_pop_threads=*/1, kNumElements);
-  EXPECT_EQ(b.GetNumPushedElements(), kNumElements);
-  EXPECT_EQ(b.GetNumPoppedElements(), kNumElements);
-}
+TEST(MpmcQueue, SameNumberOfPushAndPop_1_1_8M) { RunTest<ElemQueue>(1, 1, kNumElements); }
 
-TEST(MpmcQueue, SameNumberOfPushAndPop_8M_2_2) {
-  sham::Benchmark<ElemQueue> b(/*num_push_threads=*/2, /*num_pop_threads=*/2, kNumElements);
-  EXPECT_EQ(b.GetNumPushedElements(), kNumElements);
-  EXPECT_EQ(b.GetNumPoppedElements(), kNumElements);
-}
+TEST(MpmcQueue, SameNumberOfPushAndPop_2_2_8M) { RunTest<ElemQueue>(2, 2, kNumElements); }
 
-TEST(MpmcQueue, SameNumberOfPushAndPop_8M_4_4) {
-  sham::Benchmark<ElemQueue> b(/*num_push_threads=*/4, /*num_pop_threads=*/4, kNumElements);
-  EXPECT_EQ(b.GetNumPushedElements(), kNumElements);
-  EXPECT_EQ(b.GetNumPoppedElements(), kNumElements);
-}
+TEST(MpmcQueue, SameNumberOfPushAndPop_4_4_8M) { RunTest<ElemQueue>(4, 4, kNumElements); }
 
-TEST(MpmcQueue, SameNumberOfPushAndPop_8M_8_8) {
-  sham::Benchmark<ElemQueue> b(/*num_push_threads=*/8, /*num_pop_threads=*/8, kNumElements);
-  EXPECT_EQ(b.GetNumPushedElements(), kNumElements);
-  EXPECT_EQ(b.GetNumPoppedElements(), kNumElements);
-}
+TEST(MpmcQueue, SameNumberOfPushAndPop_8_8_8M) { RunTest<ElemQueue>(8, 8, kNumElements); }
 
-TEST(MpmcQueue, SameNumberOfPushAndPop_8M_16_16) {
-  sham::Benchmark<ElemQueue> b(/*num_push_threads=*/16, /*num_pop_threads=*/16, kNumElements);
-  EXPECT_EQ(b.GetNumPushedElements(), kNumElements);
-  EXPECT_EQ(b.GetNumPoppedElements(), kNumElements);
-}
+TEST(MpmcQueue, SameNumberOfPushAndPop_16_16_8M) { RunTest<ElemQueue>(16, 16, kNumElements); }
 
-TEST(MpmcQueue, SameNumberOfPushAndPop_8M_16_1) {
-  sham::Benchmark<ElemQueue> b(/*num_push_threads=*/16, /*num_pop_threads=*/1, kNumElements);
-  EXPECT_EQ(b.GetNumPushedElements(), kNumElements);
-  EXPECT_EQ(b.GetNumPoppedElements(), kNumElements);
-}
+TEST(MpmcQueue, SameNumberOfPushAndPop_16_1_8M) { RunTest<ElemQueue>(16, 1, kNumElements); }
 
-TEST(MpmcQueue, SameNumberOfPushAndPop_8M_32_1) {
-  sham::Benchmark<ElemQueue> b(/*num_push_threads=*/32, /*num_pop_threads=*/1, kNumElements);
-  EXPECT_EQ(b.GetNumPushedElements(), kNumElements);
-  EXPECT_EQ(b.GetNumPoppedElements(), kNumElements);
-}
+TEST(MpmcQueue, SameNumberOfPushAndPop_32_1_8M) { RunTest<ElemQueue>(32, 1, kNumElements); }
+
+TEST(MpmcQueue, SameNumberOfPushAndPop_1_16_8M) { RunTest<ElemQueue>(1, 16, kNumElements); }

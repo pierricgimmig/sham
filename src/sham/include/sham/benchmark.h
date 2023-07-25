@@ -46,6 +46,9 @@ class Benchmark {
         pop_result_("pop", num_pop_threads),
         num_elements_to_push_(num_elements_to_push) {
     queue_ = std::make_unique<QueueT>();
+  }
+
+  void Run() {
     std::thread push_setup_thread(&Benchmark::LaunchPushThreads, this);
     std::thread pop_setup_thread(&Benchmark::LaunchPopThreads, this);
     push_setup_thread.join();
@@ -53,8 +56,10 @@ class Benchmark {
     Print();
   }
 
+  size_t GetRequestedNumElementsToPush() const { return num_elements_to_push_; }
   size_t GetNumPushedElements() const { return push_result_.TotalNumOperations(); }
   size_t GetNumPoppedElements() const { return pop_result_.TotalNumOperations(); }
+  const QueueT* GetQueue() const { return queue_.get(); }
 
  private:
   // Aligned on cacheline boundary to eliminate false sharing when stored contiguously.
