@@ -39,6 +39,25 @@ class SharedMemoryBuffer {
     buffer_ = sham::MapViewOfFile(handle_, capacity_);
   }
 
+  SharedMemoryBuffer(SharedMemoryBuffer&& other) noexcept
+      : name_(std::move(other.name_)),
+        capacity_(other.capacity_),
+        handle_(other.handle_),
+        buffer_(other.buffer_),
+        size_(other.size_) {
+    other.handle_ = kInvalidFileHandle;
+    other.buffer_ = nullptr;
+    other.size_ = 0;
+  }
+
+  SharedMemoryBuffer& operator=(SharedMemoryBuffer&& other) noexcept {
+    if (this != &other) {
+      this->~SharedMemoryBuffer();
+      new (this) SharedMemoryBuffer(std::move(other));
+    }
+    return *this;
+  }
+
   ~SharedMemoryBuffer() {
     sham::UnMapViewOfFile(buffer_, capacity_);
     sham::DestroyFileMapping(handle_, name_.c_str());
@@ -59,6 +78,7 @@ class SharedMemoryBuffer {
   template <typename T, typename... Args>
   T* Allocate(Args&&... args) {
     void* buffer = Allocate(sizeof(T));
+    if (buffer == nullptr) return nullptr;
     return new (buffer)(T)(std::forward<Args>(args)...);
   }
 

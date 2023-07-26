@@ -24,7 +24,8 @@ SOFTWARE.
 
 #include "gtest/gtest.h"
 
-static constexpr const char* kSharedMemoryName = "shared_memory_buffer_test";
+namespace {
+constexpr const char* kSharedMemoryName = "shared_memory_buffer_test";
 
 class SharedMemoryBufferTest : public ::testing::Test {
  protected:
@@ -37,6 +38,7 @@ class SharedMemoryBufferTest : public ::testing::Test {
 
   std::unique_ptr<sham::SharedMemoryBuffer> buffer_;
 };
+}  // namespace
 
 TEST_F(SharedMemoryBufferTest, CreateAndAccess) {
   // Check capacity
@@ -67,4 +69,64 @@ TEST_F(SharedMemoryBufferTest, MultipleAccess) {
   // Read value from second buffer
   int* ptr2 = buffer2.As<int>();
   EXPECT_EQ(*ptr2, 123);
+}
+
+TEST(SharedMemoryBuffer, AllocateTooMuch) {
+  // Allocate memory
+  auto buffer = std::make_unique<sham::SharedMemoryBuffer>(kSharedMemoryName, sizeof(int),
+                                                           sham::SharedMemoryBuffer::Type::kCreate);
+  int* ptr = buffer->Allocate<int>(42);
+
+  // Check memory was allocated
+  ASSERT_NE(ptr, nullptr);
+
+  // Allocate too much memory
+  int* ptr2 = buffer->Allocate<int>(42);
+
+  // Check memory was not allocated
+  EXPECT_EQ(ptr2, nullptr);
+}
+
+TEST_F(SharedMemoryBufferTest, AllocateMultiple) {
+  // Allocate memory
+  int* ptr1 = buffer_->Allocate<int>(42);
+  int* ptr2 = buffer_->Allocate<int>(43);
+
+  // Check memory was allocated
+  ASSERT_NE(ptr1, nullptr);
+  ASSERT_NE(ptr2, nullptr);
+
+  // Check values
+  EXPECT_EQ(*ptr1, 42);
+  EXPECT_EQ(*ptr2, 43);
+}
+
+TEST(SharedMemoryBuffer, MoveConstructor) {
+  sham::SharedMemoryBuffer buf1("test", 1024, sham::SharedMemoryBuffer::Type::kCreate);
+
+  ASSERT_TRUE(buf1.valid());
+
+  sham::SharedMemoryBuffer buf2(std::move(buf1));
+
+  ASSERT_FALSE(buf1.valid());
+  ASSERT_TRUE(buf2.valid());
+
+  ASSERT_EQ(buf2.capacity(), 1024);
+}
+
+TEST(SharedMemoryBuffer, MoveAssignment) {
+  sham::SharedMemoryBuffer buf1("test", 1024, sham::SharedMemoryBuffer::Type::kCreate);
+
+  ASSERT_TRUE(buf1.valid());
+
+  sham::SharedMemoryBuffer buf2("other", 512, sham::SharedMemoryBuffer::Type::kCreate);
+
+  ASSERT_TRUE(buf2.valid());
+
+  buf2 = std::move(buf1);
+
+  ASSERT_FALSE(buf1.valid());
+  ASSERT_TRUE(buf2.valid());
+
+  ASSERT_EQ(buf2.capacity(), 1024);
 }

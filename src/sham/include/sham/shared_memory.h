@@ -122,7 +122,7 @@ sham::FileHandle sham::OpenFileMapping(std::string_view name) {
 
 void sham::DestroyFileMapping(FileHandle handle, std::string_view name) {
   std::string map_name(name);
-  if (handle != -1) shm_unlink(map_name.c_str());
+  if (handle != kInvalidFileHandle) shm_unlink(map_name.c_str());
 }
 
 uint8_t* sham::MapViewOfFile(FileHandle file_handle, size_t size) {
