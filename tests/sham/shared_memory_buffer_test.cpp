@@ -24,23 +24,11 @@ SOFTWARE.
 
 #include "gtest/gtest.h"
 
-namespace {
-constexpr const char* kSharedMemoryName = "shared_memory_buffer_test";
+static constexpr const char* kSharedMemoryName = "shared_memory_buffer_test";
 
-class SharedMemoryBufferTest : public ::testing::Test {
- protected:
-  void SetUp() override {
-    buffer_ = std::make_unique<sham::SharedMemoryBuffer>(kSharedMemoryName, 1024,
-                                                         sham::SharedMemoryBuffer::Type::kCreate);
-  }
-
-  void TearDown() override { buffer_.reset(); }
-
-  std::unique_ptr<sham::SharedMemoryBuffer> buffer_;
-};
-}  // namespace
-
-TEST_F(SharedMemoryBufferTest, CreateAndAccess) {
+TEST(SharedMemoryBufferTest, CreateAndAccess) {
+  auto buffer_ = std::make_unique<sham::SharedMemoryBuffer>(
+      kSharedMemoryName, 1024, sham::SharedMemoryBuffer::Type::kCreate);
   // Check capacity
   EXPECT_EQ(buffer_->capacity(), 1024);
 
@@ -57,7 +45,9 @@ TEST_F(SharedMemoryBufferTest, CreateAndAccess) {
   EXPECT_EQ(*buffer_->As<int>(), 42);
 }
 
-TEST_F(SharedMemoryBufferTest, MultipleAccess) {
+TEST(SharedMemoryBufferTest, MultipleAccess) {
+  auto buffer_ = std::make_unique<sham::SharedMemoryBuffer>(
+      kSharedMemoryName, 1024, sham::SharedMemoryBuffer::Type::kCreate);
   // Create second buffer for same shared memory
   sham::SharedMemoryBuffer buffer2(kSharedMemoryName, 1024,
                                    sham::SharedMemoryBuffer::Type::kAccessExisting);
@@ -87,7 +77,9 @@ TEST(SharedMemoryBuffer, AllocateTooMuch) {
   EXPECT_EQ(ptr2, nullptr);
 }
 
-TEST_F(SharedMemoryBufferTest, AllocateMultiple) {
+TEST(SharedMemoryBufferTest, AllocateMultiple) {
+  auto buffer_ = std::make_unique<sham::SharedMemoryBuffer>(
+      kSharedMemoryName, 1024, sham::SharedMemoryBuffer::Type::kCreate);
   // Allocate memory
   int* ptr1 = buffer_->Allocate<int>(42);
   int* ptr2 = buffer_->Allocate<int>(43);

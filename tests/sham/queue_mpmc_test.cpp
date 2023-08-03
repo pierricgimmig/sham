@@ -24,39 +24,85 @@ SOFTWARE.
 
 #include "gtest/gtest.h"
 #include "sham/benchmark.h"
+#include "sham/queue_locking.h"
 
-namespace {
-constexpr size_t kQueueCapacity = 1 * 1024 * 1024;
-constexpr size_t kNumElements = 8 * 1024 * 1024;
-using ElemQueue = sham::mpmc::Queue<sham::Element, kQueueCapacity>;
+static constexpr size_t kQueueCapacity = 1 * 1024 * 1024 - 1;
+static constexpr size_t kNumPush = 8 * 1024 * 1024;
+static constexpr size_t kSmallNumPush = 1024;
+
+// clang-format off
+using QueueTypes = ::testing::Types<
+  sham::mpmc::LockingQueue<sham::Element, kQueueCapacity>,
+  sham::mpmc::Queue<sham::Element, kQueueCapacity>>;
+
+using SingleEmlementQueueTypes = ::testing::Types<
+  sham::mpmc::LockingQueue<sham::Element, 1>,
+  sham::mpmc::Queue<sham::Element, 1>>;
+
+using SimpleQueueTypes = ::testing::Types<
+  sham::mpmc::LockingQueue<int, 3>, 
+  sham::mpmc::Queue<int, 3>>;
+// clang-format on
+
+#define SHAM_TYPED_TEST_SUITE(TypeName, TypeList) \
+  template <typename T>                           \
+  class TypeName : public ::testing::Test {};     \
+  TYPED_TEST_SUITE(TypeName, TypeList);
+
+SHAM_TYPED_TEST_SUITE(MpmcTest, QueueTypes);
+SHAM_TYPED_TEST_SUITE(SingleElementMpmcTest, SingleEmlementQueueTypes);
+SHAM_TYPED_TEST_SUITE(SimpleMpmcTest, SimpleQueueTypes);
 
 template <typename QueueT>
-void RunTest(size_t num_push_threads, size_t num_pop_threads, size_t num_elements_to_push) {
+static void RunTest(size_t num_push_threads, size_t num_pop_threads, size_t num_elements_to_push) {
   sham::Benchmark<QueueT> b(num_push_threads, num_pop_threads, num_elements_to_push);
   b.Run();
   EXPECT_EQ(b.GetNumPushedElements(), b.GetNumPoppedElements());
   EXPECT_EQ(b.GetNumPushedElements(), num_elements_to_push);
   EXPECT_TRUE(b.GetQueue()->empty());
-}
-}  // namespace
-
-TEST(MpmcQueue, SameNumberOfPushAndPopSingleElementQueue_4_4_1K) {
-  using SingleElemQueue = sham::mpmc::Queue<sham::Element, /*capacity=*/1>;
-  RunTest<SingleElemQueue>(4, 4, /*num_elements_to_push*/ 1024);
+  EXPECT_EQ(b.GetQueue()->size(), 0);
 }
 
-TEST(MpmcQueue, SameNumberOfPushAndPop_1_1_8M) { RunTest<ElemQueue>(1, 1, kNumElements); }
+TYPED_TEST(MpmcTest, CanAddValues) { RunTest<TypeParam>(4, 4, /*num_elements_to_push*/ 1024); }
 
-TEST(MpmcQueue, SameNumberOfPushAndPop_2_2_8M) { RunTest<ElemQueue>(2, 2, kNumElements); }
+TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_1_1_8M) { RunTest<TypeParam>(1, 1, kNumPush); }
 
-TEST(MpmcQueue, SameNumberOfPushAndPop_4_4_8M) { RunTest<ElemQueue>(4, 4, kNumElements); }
+TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_2_2_8M) { RunTest<TypeParam>(2, 2, kNumPush); }
 
-TEST(MpmcQueue, SameNumberOfPushAndPop_8_8_8M) { RunTest<ElemQueue>(8, 8, kNumElements); }
+TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_4_4_8M) { RunTest<TypeParam>(4, 4, kNumPush); }
 
-TEST(MpmcQueue, SameNumberOfPushAndPop_16_16_8M) { RunTest<ElemQueue>(16, 16, kNumElements); }
+TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_8_8_8M) { RunTest<TypeParam>(8, 8, kNumPush); }
 
-TEST(MpmcQueue, SameNumberOfPushAndPop_16_1_8M) { RunTest<ElemQueue>(16, 1, kNumElements); }
+TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_16_16_8M) { RunTest<TypeParam>(16, 16, kNumPush); }
 
-TEST(MpmcQueue, SameNumberOfPushAndPop_32_1_8M) { RunTest<ElemQueue>(32, 1, kNumElements); }
+TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_16_1_8M) { RunTest<TypeParam>(16, 1, kNumPush); }
 
-TEST(MpmcQueue, SameNumberOfPushAndPop_1_16_8M) { RunTest<ElemQueue>(1, 16, kNumElements); }
+TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_32_1_8M) { RunTest<TypeParam>(32, 1, kNumPush); }
+
+TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_1_16_8M) { RunTest<TypeParam>(1, 16, kNumPush); }
+
+TYPED_TEST(SingleElementMpmcTest, SameNumberOfPushAndPopSingleElementQueue_4_4_1K) {
+  RunTest<TypeParam>(4, 4, kSmallNumPush);
+}
+
+TYPED_TEST(SimpleMpmcTest, SequentialQueueAndDequeue) {
+  sham::mpmc::LockingQueue<int, 3> q;
+  EXPECT_TRUE(q.try_push(1));
+  EXPECT_TRUE(q.try_push(2));
+  EXPECT_TRUE(q.try_push(3));
+  EXPECT_FALSE(q.try_push(4));
+
+  int value;
+  EXPECT_TRUE(q.try_pop(value));
+  EXPECT_EQ(value, 1);
+  EXPECT_TRUE(q.try_pop(value));
+  EXPECT_EQ(value, 2);
+  EXPECT_TRUE(q.try_pop(value));
+  EXPECT_EQ(value, 3);
+  EXPECT_FALSE(q.try_pop(value));
+
+  EXPECT_TRUE(q.try_push(5));
+  EXPECT_TRUE(q.try_pop(value));
+  EXPECT_EQ(value, 5);
+  EXPECT_FALSE(q.try_pop(value));
+}

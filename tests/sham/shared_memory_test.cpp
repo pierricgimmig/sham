@@ -53,6 +53,7 @@ TEST_F(SharedMemoryTest, MapAndUnmap) {
   sham::UnMapViewOfFile(ptr, 1024);
 }
 
+// TODO: Support tests involving multiple processes on Windows.
 #ifndef _WIN32
 TEST_F(SharedMemoryTest, MultipleProcesses) {
   // Fork process.
