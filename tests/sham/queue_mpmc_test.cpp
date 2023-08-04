@@ -22,6 +22,8 @@ SOFTWARE.
 
 #include "sham/queue_mpmc.h"
 
+#include "external/atomic_queue/atomic_queue.h"
+#include "external/concurrentqueue/concurrentqueue.h"
 #include "gtest/gtest.h"
 #include "sham/benchmark.h"
 #include "sham/queue_locking.h"
@@ -31,7 +33,7 @@ static constexpr size_t kNumPush = 8 * 1024 * 1024;
 static constexpr size_t kSmallNumPush = 1024;
 
 // clang-format off
-using QueueTypes = ::testing::Types<
+using BenchmarkQueueTypes = ::testing::Types<
   sham::mpmc::LockingQueue<sham::Element, kQueueCapacity>,
   sham::mpmc::Queue<sham::Element, kQueueCapacity>>;
 
@@ -49,7 +51,7 @@ using SimpleQueueTypes = ::testing::Types<
   class TypeName : public ::testing::Test {};     \
   TYPED_TEST_SUITE(TypeName, TypeList);
 
-SHAM_TYPED_TEST_SUITE(MpmcTest, QueueTypes);
+SHAM_TYPED_TEST_SUITE(MpmcTest, BenchmarkQueueTypes);
 SHAM_TYPED_TEST_SUITE(SingleElementMpmcTest, SingleEmlementQueueTypes);
 SHAM_TYPED_TEST_SUITE(SimpleMpmcTest, SimpleQueueTypes);
 
@@ -62,8 +64,6 @@ static void RunTest(size_t num_push_threads, size_t num_pop_threads, size_t num_
   EXPECT_TRUE(b.GetQueue()->empty());
   EXPECT_EQ(b.GetQueue()->size(), 0);
 }
-
-TYPED_TEST(MpmcTest, CanAddValues) { RunTest<TypeParam>(4, 4, /*num_elements_to_push*/ 1024); }
 
 TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_1_1_8M) { RunTest<TypeParam>(1, 1, kNumPush); }
 

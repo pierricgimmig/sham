@@ -31,4 +31,7 @@ target_link_libraries(sham_tests PRIVATE
     sham 
     gtest_main)
 
+target_include_directories(sham_tests PRIVATE 
+    ${CMAKE_SOURCE_DIR}/tests/)
+
 gtest_discover_tests(sham_tests)
