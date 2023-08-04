@@ -37,6 +37,39 @@ struct Element {
   uint64_t value;
 };
 
+// Aligned on cacheline boundary to eliminate false sharing when stored contiguously.
+struct alignas(64) ThreadResult {
+  uint64_t id = 0;
+  uint64_t num_operations = 0;
+  uint64_t duration_ns = 0;
+};
+
+struct Result {
+  Result(std::string_view name, size_t size)
+      : name(name), size(size), threads(size), results(size) {}
+  double MillionOperationsPerSecond() const {
+    double seconds = static_cast<double>(duration_ns) * 0.000'000'0001;
+    return (static_cast<double>(TotalNumOperations()) / seconds) * 0.000'0001;
+  }
+  uint64_t TotalNumOperations() const {
+    uint64_t num_ops = 0;
+    for (const ThreadResult& result : results) num_ops += result.num_operations;
+    return num_ops;
+  }
+  void Print() const {
+    for (const ThreadResult& result : results) {
+      std::cout << StrFormat("%s[%u/%u]: %u ops\n", name.c_str(), result.id, threads.size(),
+                             result.num_operations);
+    }
+    std::cout << StrFormat("%s total ops: %u\n", name.c_str(), TotalNumOperations());
+  }
+  std::string name;
+  size_t size = 0;
+  std::vector<std::thread> threads;
+  std::vector<ThreadResult> results;
+  uint64_t duration_ns = 0;
+};
+
 template <typename QueueT>
 class Benchmark {
  public:
@@ -62,39 +95,6 @@ class Benchmark {
   const QueueT* GetQueue() const { return queue_.get(); }
 
  private:
-  // Aligned on cacheline boundary to eliminate false sharing when stored contiguously.
-  struct alignas(64) ThreadResult {
-    uint64_t id = 0;
-    uint64_t num_operations = 0;
-    uint64_t duration_ns = 0;
-  };
-
-  struct Result {
-    Result(std::string_view name, size_t size)
-        : name(name), size(size), threads(size), results(size) {}
-    double MillionOperationsPerSecond() const {
-      double seconds = static_cast<double>(duration_ns) * 0.000'000'0001;
-      return (static_cast<double>(TotalNumOperations()) / seconds) * 0.000'0001;
-    }
-    uint64_t TotalNumOperations() const {
-      uint64_t num_ops = 0;
-      for (const ThreadResult& result : results) num_ops += result.num_operations;
-      return num_ops;
-    }
-    void Print() const {
-      for (const ThreadResult& result : results) {
-        std::cout << StrFormat("%s[%u/%u]: %u ops\n", name.c_str(), result.id, threads.size(),
-                               result.num_operations);
-      }
-      std::cout << StrFormat("%s total ops: %u\n", name.c_str(), TotalNumOperations());
-    }
-    std::string name;
-    size_t size = 0;
-    std::vector<std::thread> threads;
-    std::vector<ThreadResult> results;
-    uint64_t duration_ns = 0;
-  };
-
   void LaunchPushThreads() {
     for (size_t i = 0; i < push_result_.results.size(); ++i) {
       push_result_.threads[i] =
@@ -153,6 +153,7 @@ class Benchmark {
   }
 
   void Print() {
+    std::cout << StrFormat("Type: %s", queue_->description().c_str()) << std::endl;
     std::cout << StrFormat("Threads: %u push, %u pull\n", push_result_.size, pop_result_.size);
     std::cout << StrFormat("Push/Pop rates: %f/%f M/s\n", push_result_.MillionOperationsPerSecond(),
                            pop_result_.MillionOperationsPerSecond());

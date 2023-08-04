@@ -22,6 +22,7 @@ SOFTWARE.
 
 #include "sham/queue_mpmc.h"
 
+#include "adapters/concurrent_queue.h"
 #include "external/atomic_queue/atomic_queue.h"
 #include "external/concurrentqueue/concurrentqueue.h"
 #include "gtest/gtest.h"
@@ -35,7 +36,8 @@ static constexpr size_t kSmallNumPush = 1024;
 // clang-format off
 using BenchmarkQueueTypes = ::testing::Types<
   sham::mpmc::LockingQueue<sham::Element, kQueueCapacity>,
-  sham::mpmc::Queue<sham::Element, kQueueCapacity>>;
+  sham::mpmc::Queue<sham::Element, kQueueCapacity>,
+  sham::ConcurrentQueue<sham::Element>>;
 
 using SingleEmlementQueueTypes = ::testing::Types<
   sham::mpmc::LockingQueue<sham::Element, 1>,
@@ -43,7 +45,8 @@ using SingleEmlementQueueTypes = ::testing::Types<
 
 using SimpleQueueTypes = ::testing::Types<
   sham::mpmc::LockingQueue<int, 3>, 
-  sham::mpmc::Queue<int, 3>>;
+  sham::mpmc::Queue<int, 3>,
+  sham::ConcurrentQueue<int>>;
 // clang-format on
 
 #define SHAM_TYPED_TEST_SUITE(TypeName, TypeList) \
@@ -55,14 +58,25 @@ SHAM_TYPED_TEST_SUITE(MpmcTest, BenchmarkQueueTypes);
 SHAM_TYPED_TEST_SUITE(SingleElementMpmcTest, SingleEmlementQueueTypes);
 SHAM_TYPED_TEST_SUITE(SimpleMpmcTest, SimpleQueueTypes);
 
+template <typename T>
+concept has_size_method = requires(T t) { t.size(); };
+
+template <typename T>
+concept has_empty_method = requires(T t) { t.empty(); };
+
 template <typename QueueT>
 static void RunTest(size_t num_push_threads, size_t num_pop_threads, size_t num_elements_to_push) {
   sham::Benchmark<QueueT> b(num_push_threads, num_pop_threads, num_elements_to_push);
   b.Run();
   EXPECT_EQ(b.GetNumPushedElements(), b.GetNumPoppedElements());
   EXPECT_EQ(b.GetNumPushedElements(), num_elements_to_push);
-  EXPECT_TRUE(b.GetQueue()->empty());
-  EXPECT_EQ(b.GetQueue()->size(), 0);
+
+  if constexpr (has_empty_method<QueueT>) {
+    EXPECT_TRUE(b.GetQueue()->empty());
+  }
+  if constexpr (has_size_method<QueueT>) {
+    EXPECT_EQ(b.GetQueue()->size(), 0);
+  }
 }
 
 TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_1_1_8M) { RunTest<TypeParam>(1, 1, kNumPush); }

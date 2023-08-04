@@ -29,15 +29,17 @@ SOFTWARE.
 #include <memory>
 #include <new>  // std::hardware_destructive_interference_size
 #include <stdexcept>
+#include <string>
 
 namespace sham {
 namespace mpmc {
 
 // NOTE: This is a copy of https://github.com/rigtorp/MPMCQueue, with the following modifications
-// to make it suitable for shared memory use:
+// to make it suitable for shared memory use and to ease benchmarking:
 //  - Removed allocations for internal slots in favor of in-place array to avoid pointers in
 //  different address spaces.
 //  - Removed the capacity_ member variable in favor of kCapacity template argument.
+//  - Added descriptions() method to be used when benchmarking.
 
 #if defined(__cpp_lib_hardware_interference_size) && !defined(__APPLE__)
 static constexpr size_t hardwareInterferenceSize = std::hardware_destructive_interference_size;
@@ -218,6 +220,8 @@ class Queue {
   bool empty() const noexcept { return size() <= 0; }
 
   [[nodiscard]] static size_t capacity() noexcept { return kCapacity; }
+
+  std::string description() { return "Rigtorp mpmc queue"; }
 
  private:
   constexpr size_t idx(size_t i) const noexcept { return i % kInternalCapacity; }

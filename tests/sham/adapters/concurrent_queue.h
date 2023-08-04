@@ -20,29 +20,21 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
  */
 
-#include <iostream>
-#include <memory>
-#include <string>
+#include "external/concurrentqueue/concurrentqueue.h"
 
 namespace sham {
 
-#define TRACE_VAR(x) std::cout << #x << " = " << x << std::endl
-
-template <typename... Args>
-std::string StrFormat(const std::string& format, Args... args) {
-  int size_s = std::snprintf(nullptr, 0, format.c_str(), args...) + 1;  // Extra space for '\0'
-  if (size_s <= 0) {
-    return "[error]";
-  }
-  auto size = static_cast<size_t>(size_s);
-  std::unique_ptr<char[]> buf(new char[size]);
-  std::snprintf(buf.get(), size, format.c_str(), args...);
-  return std::string(buf.get(), buf.get() + size - 1);  // We don't want the '\0' inside
-}
-
-template <typename T>
-static const char* TypeAsString() {
-  return typeid(T).name();
-}
-
+// Adapter for MoodyCamel's concurrentqueue used in tests and benchmarks.
+// NOTE: concurrentqueue is not fixed size and has no empty() or size() methods.
+template <typename ElementT>
+struct ConcurrentQueue {
+  ConcurrentQueue() {}
+  inline void push(const ElementT& e) { queue_.enqueue(e); }
+  inline void push(ElementT&& e) { queue_.enqueue(std::forward<ElementT>(e)); }
+  inline bool try_push(ElementT& e) { return queue_.try_enqueue(e); }
+  inline bool try_push(ElementT&& e) { return queue_.try_enqueue(std::forward<ElementT>(e)); }
+  inline bool try_pop(ElementT& e) { return queue_.try_dequeue(e); }
+  std::string description() { return "MoodyCamel concurrent queue"; }
+  moodycamel::ConcurrentQueue<ElementT> queue_;
+};
 }  // namespace sham

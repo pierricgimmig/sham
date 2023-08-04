@@ -63,6 +63,7 @@ class LockingQueue {
   }
 
   bool try_push(const T& v) { return try_emplace(v); }
+  bool try_push(T&& v) noexcept { return try_emplace(std::forward<T>(v)); }
 
   void push(const T& v) { emplace(v); }
 
@@ -95,6 +96,8 @@ class LockingQueue {
     return is_full(lk);
   }
   [[nodiscard]] static inline size_t capacity() { return kCapacity; }
+
+  std::string description() const { return "Locking queue"; }
 
  private:
   // We need one extra slot to distinguish between full and empty.
