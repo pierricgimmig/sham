@@ -20,7 +20,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
  */
 
+#include <fstream>
 #include <iostream>
+#include <map>
 #include <memory>
 #include <string>
 #include <thread>
@@ -70,11 +72,54 @@ struct Result {
   uint64_t duration_ns = 0;
 };
 
+struct BenchmarkSummary {
+  std::string description;
+  size_t num_push_threads = 0;
+  size_t num_pop_threads = 0;
+  double million_push_operations_per_second = 0;
+  double million_pop_operations_per_second = 0;
+};
+
+struct BenchmarkStats {
+  static BenchmarkStats& Get() {
+    static BenchmarkStats stats;
+    return stats;
+  }
+  void Print(std::ostream& out = std::cout) const {
+    for (const auto& [desc, s] : benchmark_summaries) {
+      out << std::setw(32) << desc;
+      out << std::setw(8) << StrFormat(" %u %u ", s.num_push_threads, s.num_pop_threads);
+      out << StrFormat(" [%.2f/%.2f] Mops/s", s.million_push_operations_per_second,
+                       s.million_pop_operations_per_second)
+          << std::endl;
+    }
+  }
+
+  bool Log() const {
+    std::ofstream log_file("benchmark_summary.txt", std::ios_base::app | std::ios_base::out);
+    if (log_file.fail()) {
+      perror("Could not create summary file, aborting.\n");
+      return false;
+    }
+
+    Print(log_file);
+    log_file.close();
+    return true;
+  }
+  std::map<std::string, BenchmarkSummary> benchmark_summaries;
+
+ private:
+  BenchmarkStats() = default;
+  ~BenchmarkStats() { Log(); }
+};
+
 template <typename QueueT>
 class Benchmark {
  public:
   Benchmark(size_t num_push_threads, size_t num_pop_threads, size_t num_elements_to_push)
-      : num_unregistered_threads_(num_push_threads + num_pop_threads),
+      : num_push_threads_(num_push_threads),
+        num_pop_threads_(num_pop_threads),
+        num_unregistered_threads_(num_push_threads + num_pop_threads),
         push_result_("push", num_push_threads),
         pop_result_("pop", num_pop_threads),
         num_elements_to_push_(num_elements_to_push) {
@@ -87,6 +132,14 @@ class Benchmark {
     push_setup_thread.join();
     pop_setup_thread.join();
     Print();
+
+    std::string description = queue_->description();
+    BenchmarkSummary& summary = BenchmarkStats::Get().benchmark_summaries[description];
+    summary.description = description;
+    summary.num_push_threads = num_push_threads_;
+    summary.num_pop_threads = num_pop_threads_;
+    summary.million_push_operations_per_second = push_result_.MillionOperationsPerSecond();
+    summary.million_pop_operations_per_second = pop_result_.MillionOperationsPerSecond();
   }
 
   size_t GetRequestedNumElementsToPush() const { return num_elements_to_push_; }
@@ -167,6 +220,9 @@ class Benchmark {
   std::atomic<size_t> num_elements_to_push_;
   std::atomic<size_t> num_popped_elements_;
   std::atomic<size_t> num_unregistered_threads_;
+
+  size_t num_push_threads_ = 0;
+  size_t num_pop_threads_ = 0;
 
   Result push_result_;
   Result pop_result_;

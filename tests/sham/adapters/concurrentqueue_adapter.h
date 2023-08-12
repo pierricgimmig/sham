@@ -27,8 +27,8 @@ namespace sham {
 // Adapter for MoodyCamel's concurrentqueue used in tests and benchmarks.
 // NOTE: concurrentqueue is not fixed size and has no empty() or size() methods.
 template <typename ElementT>
-struct ConcurrentQueue {
-  ConcurrentQueue() {}
+struct ConcurrentQueueAdapter {
+  ConcurrentQueueAdapter() {}
   inline void push(const ElementT& e) { queue_.enqueue(e); }
   inline void push(ElementT&& e) { queue_.enqueue(std::forward<ElementT>(e)); }
   inline bool try_push(ElementT& e) { return queue_.try_enqueue(e); }

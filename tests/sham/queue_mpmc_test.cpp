@@ -22,7 +22,8 @@ SOFTWARE.
 
 #include "sham/queue_mpmc.h"
 
-#include "adapters/concurrent_queue.h"
+#include "adapters/atomic_queue_adapter.h"
+#include "adapters/concurrentqueue_adapter.h"
 #include "external/atomic_queue/atomic_queue.h"
 #include "external/concurrentqueue/concurrentqueue.h"
 #include "gtest/gtest.h"
@@ -37,7 +38,8 @@ static constexpr size_t kSmallNumPush = 1024;
 using BenchmarkQueueTypes = ::testing::Types<
   sham::mpmc::LockingQueue<sham::Element, kQueueCapacity>,
   sham::mpmc::Queue<sham::Element, kQueueCapacity>,
-  sham::ConcurrentQueue<sham::Element>>;
+  sham::AtomicQueueAdapter<sham::Element, kQueueCapacity>,
+  sham::ConcurrentQueueAdapter<sham::Element>>;
 
 using SingleEmlementQueueTypes = ::testing::Types<
   sham::mpmc::LockingQueue<sham::Element, 1>,
@@ -46,7 +48,7 @@ using SingleEmlementQueueTypes = ::testing::Types<
 using SimpleQueueTypes = ::testing::Types<
   sham::mpmc::LockingQueue<int, 3>, 
   sham::mpmc::Queue<int, 3>,
-  sham::ConcurrentQueue<int>>;
+  sham::ConcurrentQueueAdapter<int>>;
 // clang-format on
 
 #define SHAM_TYPED_TEST_SUITE(TypeName, TypeList) \
@@ -68,6 +70,7 @@ template <typename QueueT>
 static void RunTest(size_t num_push_threads, size_t num_pop_threads, size_t num_elements_to_push) {
   sham::Benchmark<QueueT> b(num_push_threads, num_pop_threads, num_elements_to_push);
   b.Run();
+
   EXPECT_EQ(b.GetNumPushedElements(), b.GetNumPoppedElements());
   EXPECT_EQ(b.GetNumPushedElements(), num_elements_to_push);
 
