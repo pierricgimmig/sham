@@ -18,20 +18,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-include(GoogleTest)
+add_library(atomic_queue INTERFACE IMPORTED GLOBAL)
+target_include_directories(atomic_queue SYSTEM
+                           INTERFACE third_party/atomic_queue)
+target_compile_features(concurrentqueue INTERFACE cxx_std_11)
 
-add_executable(sham_tests)
-
-target_sources(sham_tests PRIVATE
-    queue_mpmc_test.cpp
-    shared_memory_buffer_test.cpp
-    shared_memory_test.cpp)
-
-target_link_libraries(sham_tests PRIVATE 
-    sham 
-    gtest_main)
-
-target_include_directories(sham_tests PRIVATE 
-    ${CMAKE_SOURCE_DIR}/tests/)
-
-gtest_discover_tests(sham_tests)
+add_library(atomic_queue::atomic_queue ALIAS atomic_queue)

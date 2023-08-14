@@ -24,8 +24,6 @@ SOFTWARE.
 
 #include "adapters/atomic_queue_adapter.h"
 #include "adapters/concurrentqueue_adapter.h"
-#include "external/atomic_queue/atomic_queue.h"
-#include "external/concurrentqueue/concurrentqueue.h"
 #include "gtest/gtest.h"
 #include "sham/benchmark.h"
 #include "sham/queue_locking.h"
@@ -35,6 +33,7 @@ static constexpr size_t kNumPush = 8 * 1024 * 1024;
 static constexpr size_t kSmallNumPush = 1024;
 
 // clang-format off
+
 using BenchmarkQueueTypes = ::testing::Types<
   sham::mpmc::LockingQueue<sham::Element, kQueueCapacity>,
   sham::mpmc::Queue<sham::Element, kQueueCapacity>,
@@ -49,6 +48,13 @@ using SimpleQueueTypes = ::testing::Types<
   sham::mpmc::LockingQueue<int, 3>, 
   sham::mpmc::Queue<int, 3>,
   sham::ConcurrentQueueAdapter<int>>;
+
+template <typename T>
+concept has_size_method = requires(T t) { t.size(); };
+
+template <typename T>
+concept has_empty_method = requires(T t) { t.empty(); };
+
 // clang-format on
 
 #define SHAM_TYPED_TEST_SUITE(TypeName, TypeList) \
@@ -59,12 +65,6 @@ using SimpleQueueTypes = ::testing::Types<
 SHAM_TYPED_TEST_SUITE(MpmcTest, BenchmarkQueueTypes);
 SHAM_TYPED_TEST_SUITE(SingleElementMpmcTest, SingleEmlementQueueTypes);
 SHAM_TYPED_TEST_SUITE(SimpleMpmcTest, SimpleQueueTypes);
-
-template <typename T>
-concept has_size_method = requires(T t) { t.size(); };
-
-template <typename T>
-concept has_empty_method = requires(T t) { t.empty(); };
 
 template <typename QueueT>
 static void RunTest(size_t num_push_threads, size_t num_pop_threads, size_t num_elements_to_push) {

@@ -20,7 +20,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
  */
 
-#include "external/atomic_queue/atomic_queue.h"
+#include "atomic_queue.h"
 
 namespace sham {
 

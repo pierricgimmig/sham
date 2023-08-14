@@ -18,39 +18,21 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-cmake_minimum_required(VERSION 3.14)
-project(sham CXX)
+include(GoogleTest)
 
-set (CMAKE_CXX_STANDARD 20)
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+add_executable(sham_tests)
 
-enable_testing()
-include(FetchContent)
+target_sources(sham_tests PRIVATE
+    queue_mpmc_test.cpp
+    shared_memory_buffer_test.cpp
+    shared_memory_test.cpp)
 
-# Google Test
-FetchContent_Declare(
-  googletest
-  GIT_REPOSITORY https://github.com/google/googletest.git
-  GIT_TAG 7e33b6a1c497ced1e98fc60175aeb4678419281c
-)
-set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(googletest)
+target_link_libraries(sham_tests PRIVATE 
+    adapters
+    sham 
+    gtest_main)
 
-# Google Benchmark
-set(BENCHMARK_ENABLE_TESTING NO)
-FetchContent_Declare(
-    googlebenchmark
-    GIT_REPOSITORY https://github.com/google/benchmark.git
-    GIT_TAG 1c64a36c5b8ee75d462b3fe7a9d020c66a2a1094
-)
-FetchContent_MakeAvailable(googlebenchmark)
+target_include_directories(sham_tests PRIVATE 
+    ${CMAKE_SOURCE_DIR}/tests/)
 
-find_package(concurrentqueue REQUIRED)
-find_package(atomic_queue REQUIRED)
-
-# Sham
-add_subdirectory(src/adapters)
-add_subdirectory(src/benchmarks)
-add_subdirectory(src/sham)
-add_subdirectory(src/tests)
-
+gtest_discover_tests(sham_tests)
