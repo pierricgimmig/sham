@@ -21,6 +21,7 @@ SOFTWARE.
  */
 
 #include "sham/queue_mpmc.h"
+#include "sham/queue_mpmc_var.h"
 
 #include "adapters/atomic_queue_adapter.h"
 #include "adapters/concurrentqueue_adapter.h"
@@ -47,7 +48,8 @@ using SingleEmlementQueueTypes = ::testing::Types<
 using SimpleQueueTypes = ::testing::Types<
   sham::mpmc::LockingQueue<int, 3>, 
   sham::mpmc::Queue<int, 3>,
-  sham::ConcurrentQueueAdapter<int>>;
+  sham::ConcurrentQueueAdapter<int>,
+  sham::MpmcQueue<1024>>;
 
 template <typename T>
 concept has_size_method = requires(T t) { t.size(); };

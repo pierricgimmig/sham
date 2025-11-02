@@ -12,110 +12,101 @@ MIT License - Copyright (c) 2025 Pierric Gimmig
 #include <new>
 #include <stdexcept>
 #include <string>
+#include <span>
+
+#define CHECK(cond)
 
 namespace sham {
-namespace mpmc {
-
-static constexpr size_t hardwareInterferenceSize = 64; // assumed
-static constexpr size_t kCacheLineMinusOne = hardwareInterferenceSize - 1; // assumed
-
-inline size_t align_to_cache_line(size_t size) {
-  return (size + kCacheLineMinusOne) & ~kCacheLineMinusOne;
-}
-struct BlockMetadata {
-  std::atomic<size_t> ready = {0}; // uint8_t
-  std::atomic<size_t> next_metadata_ready = {0};
-  size_t size = 0;
-};
 
 // Lockless variable size elements MPMC queue
 template <size_t kCapacity>
-class Queue {
+class MpmcQueue {
  public:
-  explicit Queue() : head_(0), tail_(0) {
+  struct BlockHeader {
+    std::atomic<size_t> ready = 0;  // block is ready for full consumption
+    std::atomic<size_t> size = 0;   // indicates that block header is ready for consumption
+  };
+
+  explicit MpmcQueue() : head_(sizeof(BlockHeader)), tail_(sizeof(BlockHeader)) {
+    static_assert(kCapacity >= kCacheLineSize, "kCapacity must be at least one cache line");
+    static_assert(is_power_of_two(kCapacity), "kCapacity must be a power of 2");
     std::memset(data_, 0, sizeof(data_));
   }
-  ~Queue() noexcept {}
-  Queue(const Queue&) = delete;
-  Queue& operator=(const Queue&) = delete;
-
-  template <typename... Args>
-  void emplace(Args&&... args) noexcept {
-    auto const head = head_.fetch_add(1);
-    auto& slot = slots_[idx(head)];
-    while (turn(head) * 2 != slot.turn.load(std::memory_order_acquire))
-      ;
-    slot.construct(std::forward<Args>(args)...);
-    slot.turn.store(turn(head) * 2 + 1, std::memory_order_release);
-  }
+  ~MpmcQueue() noexcept {}
+  MpmcQueue(const MpmcQueue&) = delete;
+  MpmcQueue& operator=(const MpmcQueue&) = delete;
 
   bool try_push(std::span<uint8_t> data) noexcept {
-    size_t data_size = align_to_cache_line(sizeof(BlockMetadata) + data.size());
+    size_t block_size = align_to_cache_line(data.size() + sizeof(BlockHeader));
     while (true) {
-      size_t tail = tail_.load(std::memory_order_relaxed);  // conservative estimate of free space
+      // ABA protection: conservatively estimate free space, return false if insufficient.
+      size_t tail = tail_.load(std::memory_order_relaxed);
       size_t head = head_.load(std::memory_order_acquire);
-      if ((head + data_size - tail) > kCapacity) {
-        return false;  // not enough space
+      if ((head + block_size - tail) > kCapacity) {
+        return false;
       }
-      size_t prev_head = head;
-      if (head_.compare_exchange_strong(head, head + data_size)) {                      // try to acquire space
-        BlockMetadata* prev_metadata = static_cast<tBlockMetadata*>(&data_[idx(prev_head)]);
-        CHECK(prev_metadata->next_metadata_ready.load(std::memory_order_relaxed) == 0); // we are the only one to write into this slot
-        BlockMetadata* metadata = &data_[idx(head)];                                    // from this point on, the space is reserved, others can enqueue after us
-        metadata->size = data.size();                                                   // init size
-        metadata->ready.store(0, std::memory_order_relaxed);                            // not yet ready for consumer, relaxed since it will be visible to consumer only after next_metada_ready is released
-        metadata->next_metadata_ready.store(0, std::memory_order_relaxed);              // init next metadata
-        prev_metadata->next_metadata_ready.store(1, std::memory_order_release);         // mark new metadata as ready in previous block, this means that we can now start dequeuing even if the data is not yet fully written, we can access size and next_metadata_ready
-        std::memcpy(static_cast<void*>(metadata+1), data.data(), data.size());          // store data
-        slot_header->ready.store(1, std::memory_order_release);                         // mark data as ready for consumption
+
+      // Try to acquire write block by advancing head
+      if (head_.compare_exchange_weak(head, head + block_size, std::memory_order_release,
+                                      std::memory_order_acquire)) {
+        // Block acquired for write, initialize next block header
+        auto next_header = reinterpret_cast<BlockHeader*>(&data_[idx(head + block_size)]) - 1;
+        next_header->ready.store(0, std::memory_order_relaxed);
+        next_header->size.store(0, std::memory_order_relaxed);
+        // Allow consumer to acquire block by publishing size
+        auto header = reinterpret_cast<BlockHeader*>(&data_[idx(head)]) - 1;
+        header->size.store(data.size(), std::memory_order_release);
+        // Store data, always contiguous thanks to mapping memory space twice
+        CHECK(header->size.load(std::memory_order_relaxed) == 0);
+        std::memcpy(static_cast<void*>(header + 1), data.data(), data.size());
+        // Allow consumer to read acquired block
+        header->ready.store(1, std::memory_order_release);
         return true;
-      } else {
-        size_t prev_head = head;
-        head = head_.load(std::memory_order_acquire);
-        if (head == prev_head) {
-          return false;
-        }
       }
     }
   }
 
-    bool try_pop(std::vector<uint8_t> & buffer) noexcept {
-      auto tail = tail_.load(std::memory_order_acquire);
-      for (;;) {
-        auto& slot = slots_[idx(tail)];
-        if (turn(tail) * 2 + 1 == slot.turn.load(std::memory_order_acquire)) {
-          if (tail_.compare_exchange_strong(tail, tail + 1)) {
-            v = slot.move();
-            slot.destroy();
-            slot.turn.store(turn(tail) * 2 + 2, std::memory_order_release);
-            return true;
-          }
-        } else {
-          auto const prevTail = tail;
-          tail = tail_.load(std::memory_order_acquire);
-          if (tail == prevTail) {
-            return false;
-          }
-        }
+  bool try_pop(std::vector<uint8_t>& buffer) noexcept {
+    size_t tail = tail_.load(std::memory_order_acquire);
+    while (true) {
+      BlockHeader* header = reinterpret_cast<BlockHeader*>(&data_[idx(tail)]) - 1;
+      size_t size = header->size.load(std::memory_order_acquire);
+      if (size == 0) return false;  // not ready yet
+      size_t block_size = align_to_cache_line(size + sizeof(BlockHeader));
+
+      // Try to acquire read block by advancing tail
+      if (tail_.compare_exchange_weak(tail, tail + block_size, std::memory_order_release,
+                                      std::memory_order_acquire)) {
+        // Block acquired for read, ensure enough space in buffer and wait for `ready`
+        buffer.resize(size);
+        while (header->ready.load(std::memory_order_acquire) == 0);
+        // Consume data
+        std::memcpy(buffer.data(), static_cast<void*>(header + 1), size);
       }
     }
+  }
 
-    ptrdiff_t size() const noexcept {
-      return static_cast<ptrdiff_t>(head_.load(std::memory_order_relaxed) -
-                                    tail_.load(std::memory_order_relaxed));
-      bool empty() const noexcept { return size() <= 0; }
+  size_t size() const noexcept {
+    return head_.load(std::memory_order_relaxed) - tail_.load(std::memory_order_relaxed);
+  }
+  bool empty() const noexcept { return size() == 0; }
 
-     private:
-      constexpr size_t idx(size_t i) const noexcept { return i % kInternalCapacity; }
-      constexpr size_t turn(size_t i) const noexcept { return i / kInternalCapacity; }
-      static constexpr size_t kInternalCapacity = kCapacity + 1;
+ private:
+  static constexpr size_t kCacheLineSize = 128; //std::hardware_destructive_interference_size;
+  constexpr inline size_t idx(size_t i) const noexcept { return i & (kCapacity - 1); }
+  constexpr inline bool is_power_of_two(size_t size) { return (size & (size - 1)) == 0; }
+  constexpr inline size_t align_to_cache_line(size_t size) {
+    return (size + kCacheLineSize - 1) & ~(kCacheLineSize - 1);
+  }
 
-     private:
-      uint8_t data_[kInternalCapacity];
-      alignas(hardwareInterferenceSize) std::atomic<size_t> head_;
-      alignas(hardwareInterferenceSize) std::atomic<size_t> tail_;
-    };
-
-  }  // namespace mpmc
+ private:
+  alignas(kCacheLineSize) uint8_t data_[kCapacity];
+  alignas(kCacheLineSize) std::atomic<size_t> head_;
+  alignas(kCacheLineSize) std::atomic<size_t> tail_;
+};
 
 }  // namespace sham
+
+// Q: which cache line should the header be in? A: probably the same one as the data.
+// Q: explicitly explain why header is pre-allocated: we need a preexisting data to wait on while
+// the size is being written
