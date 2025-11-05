@@ -40,10 +40,10 @@ class MpmcQueue {
       if (head_.compare_exchange_weak(head, head + block_size, std::memory_order_release,
                                       std::memory_order_acquire)) {
         // Block acquired for write, initialize next block header
-        auto next_header = reinterpret_cast<BlockHeader*>(&data_[idx(head + block_size)]);
+        BlockHeader* next_header = get_header(head + block_size);
         next_header->size.store(0, std::memory_order_relaxed);
         // Store data, always contiguous thanks to mapping memory space twice
-        auto header = reinterpret_cast<BlockHeader*>(&data_[idx(head)]);
+        BlockHeader* header = get_header(head);
         std::memcpy(static_cast<void*>(header + 1), data.data(), data.size());
         // Publish block to consumer by setting size, which must be zero initially
         CHECK(header->size.compare_exchange_strong(0, data.size(), std::memory_order_release));
@@ -54,7 +54,7 @@ class MpmcQueue {
 
   bool try_pop(std::vector<uint8_t>& buffer) noexcept {
     size_t read = read_.load(std::memory_order_acquire);
-    BlockHeader* header = reinterpret_cast<BlockHeader*>(&data_[idx(read)]);
+    BlockHeader* header = get_header(read);
     size_t size = header->size.load(std::memory_order_acquire);
     if (size == 0) return false;
     size_t block_size = align_to_cache_line(size + sizeof(BlockHeader));
@@ -74,7 +74,7 @@ class MpmcQueue {
   bool try_shrink() {
     size_t tail = tail_.load(std::memory_order_acquire);
     while (true) {
-      BlockHeader* header = reinterpret_cast<BlockHeader*>(&data_[idx(tail)]);
+      BlockHeader* header = get_header(tail);
       int size = header->size.load(std::memory_order_acquire);
       if (size > 0) return false;
       size_t new_tail = tail + align_to_cache_line(-size + sizeof(BlockHeader));
@@ -102,6 +102,9 @@ class MpmcQueue {
   constexpr inline size_t align_to_cache_line(size_t size) {
     return (size + kCacheLineSize - 1) & ~(kCacheLineSize - 1);
   }
+  constexpr inline BlockHeader* get_header(size_t index) noexcept {
+    return reinterpret_cast<BlockHeader*>(&data_[idx(index)]);
+  }
 
   alignas(kCacheLineSize) uint8_t data_[kCapacity];
   alignas(kCacheLineSize) std::atomic<size_t> head_;
@@ -110,7 +113,3 @@ class MpmcQueue {
 };
 
 }  // namespace sham
-
-// Q: which cache line should the header be in? A: probably the same one as the data.
-// Q: explicitly explain why header is pre-allocated: we need a preexisting data to wait on while
-// the size is being written
