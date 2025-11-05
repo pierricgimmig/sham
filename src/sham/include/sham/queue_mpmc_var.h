@@ -5,8 +5,8 @@ MIT License - Copyright (c) 2025 Pierric Gimmig
 #pragma once
 
 #include <atomic>
-#include <stdexcept>
 #include <span>
+#include <stdexcept>
 #include <vector>
 
 #define CHECK(x) x
@@ -21,9 +21,7 @@ class MpmcQueue {
     std::atomic<int> size = 0;
   };
 
-  explicit MpmcQueue() : head_(0), tail_(0) {
-    std::memset(data_, 0, sizeof(data_));
-  }
+  explicit MpmcQueue() : head_(0), tail_(0) { std::memset(data_, 0, sizeof(data_)); }
   ~MpmcQueue() noexcept {}
   MpmcQueue(const MpmcQueue&) = delete;
   MpmcQueue& operator=(const MpmcQueue&) = delete;
@@ -62,7 +60,7 @@ class MpmcQueue {
     size_t block_size = align_to_cache_line(size + sizeof(BlockHeader));
     if (read_.compare_exchange_strong(read, read + block_size, std::memory_order_release,
                                       std::memory_order_relaxed)) {
-      // Block acquired for read
+      // Block acquired for read, consume data
       buffer.resize(size);
       std::memcpy(buffer.data(), static_cast<void*>(header + 1), size);
       // Mark block as free
@@ -78,9 +76,10 @@ class MpmcQueue {
     while (true) {
       BlockHeader* header = reinterpret_cast<BlockHeader*>(&data_[idx(tail)]);
       int size = header->size.load(std::memory_order_acquire);
-      if ((size > 0) || !tail_.compare_exchange_strong(
-                            tail, tail + align_to_cache_line(-size + sizeof(BlockHeader)),
-                            std::memory_order_release, std::memory_order_acquire)) {
+      if (size > 0) return false;
+      size_t new_tail = tail + align_to_cache_line(-size + sizeof(BlockHeader));
+      if (!tail_.compare_exchange_strong(tail, new_tail, std::memory_order_release,
+                                         std::memory_order_acquire)) {
         return false;
       }
     }
@@ -93,7 +92,7 @@ class MpmcQueue {
   bool empty() const noexcept { return size() == 0; }
 
  private:
-  static constexpr void validate(){
+  static constexpr void validate() {
     static_assert(kCapacity >= kCacheLineSize, "kCapacity must be at least one cache line");
     static_assert((kCapacity & (kCapacity - 1)) == 0, "kCapacity must be a power of 2");
   }
@@ -104,7 +103,6 @@ class MpmcQueue {
     return (size + kCacheLineSize - 1) & ~(kCacheLineSize - 1);
   }
 
- private:
   alignas(kCacheLineSize) uint8_t data_[kCapacity];
   alignas(kCacheLineSize) std::atomic<size_t> head_;
   alignas(kCacheLineSize) std::atomic<size_t> tail_;
