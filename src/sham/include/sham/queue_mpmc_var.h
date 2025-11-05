@@ -71,7 +71,7 @@ class MpmcQueue {
     return false;
   }
 
-  bool try_shrink() {
+  bool try_shrink() noexcept {
     size_t tail = tail_.load(std::memory_order_acquire);
     while (true) {
       BlockHeader* header = get_header(tail);
