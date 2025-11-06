@@ -26,13 +26,14 @@ class MpmcQueue {
   MpmcQueue(const MpmcQueue&) = delete;
   MpmcQueue& operator=(const MpmcQueue&) = delete;
 
-  bool try_push(std::span<uint8_t> data) noexcept {
+  bool push(std::span<uint8_t> data) noexcept {
     size_t block_size = align_to_cache_line(data.size() + sizeof(BlockHeader));
     while (true) {
       // Conservatively estimate free space, return false if insufficient
       size_t tail = tail_.load(std::memory_order_relaxed);
       size_t head = head_.load(std::memory_order_acquire);
       if ((head + block_size + sizeof(BlockHeader) - tail) > kCapacity) {
+        // Queue is too full for new block, try shrinking
         if (try_shrink()) continue;
         return false;
       }
@@ -52,7 +53,7 @@ class MpmcQueue {
     }
   }
 
-  bool try_pop(std::vector<uint8_t>& buffer) noexcept {
+  bool pop(std::vector<uint8_t>& buffer) noexcept {
     size_t read = read_.load(std::memory_order_acquire);
     BlockHeader* header = get_header(read);
     size_t size = header->size.load(std::memory_order_acquire);
@@ -71,7 +72,7 @@ class MpmcQueue {
     return false;
   }
 
-  size_t try_shrink() noexcept {
+  size_t shrink() noexcept {
     size_t space_reclaimed = 0;
     size_t tail = tail_.load(std::memory_order_acquire);
     while (true) {
@@ -89,10 +90,9 @@ class MpmcQueue {
     return space_reclaimed;
   }
 
-  size_t size() const noexcept {
+  size_t size_estimate() const noexcept {
     return head_.load(std::memory_order_relaxed) - tail_.load(std::memory_order_relaxed);
   }
-  bool empty() const noexcept { return size() == 0; }
 
  private:
   static constexpr void validate() {
