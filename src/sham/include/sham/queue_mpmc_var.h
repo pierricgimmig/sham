@@ -71,19 +71,22 @@ class MpmcQueue {
     return false;
   }
 
-  bool try_shrink() noexcept {
+  size_t try_shrink() noexcept {
+    size_t space_reclaimed = 0;
     size_t tail = tail_.load(std::memory_order_acquire);
     while (true) {
       BlockHeader* header = get_header(tail);
       int size = header->size.load(std::memory_order_acquire);
-      if (size > 0) return false;
+      if (size >= 0) break;
       size_t new_tail = tail + align_to_cache_line(-size + sizeof(BlockHeader));
-      if (!tail_.compare_exchange_strong(tail, new_tail, std::memory_order_release,
+      if (tail_.compare_exchange_strong(tail, new_tail, std::memory_order_release,
                                          std::memory_order_acquire)) {
-        return false;
+        space_reclaimed += (new_tail - tail);
+      } else {
+        break;
       }
     }
-    return true;
+    return space_reclaimed;
   }
 
   size_t size() const noexcept {
