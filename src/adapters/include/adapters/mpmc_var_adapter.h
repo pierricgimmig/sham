@@ -24,6 +24,21 @@ SOFTWARE.
 
 namespace sham {
 
+ constexpr uint64_t next_power_of_two(uint64_t n) {
+  if (n == 0) return 1;
+
+  n--;
+  n |= n >> 1;
+  n |= n >> 2;
+  n |= n >> 4;
+  n |= n >> 8;
+  n |= n >> 16;
+  n |= n >> 32;
+  n++;
+
+  return n;
+}
+
 // Adapter for sham::MpmcQueue concurrentqueue used in tests and benchmarks.
 template <typename ElementT, size_t Size>
 struct MpmcVarQueueAdapter {
@@ -33,7 +48,7 @@ struct MpmcVarQueueAdapter {
   inline bool try_push(ElementT& e) { return queue_.try_push({reinterpret_cast<uint8_t*>(&e), sizeof(e)}); }
   inline bool try_push(ElementT&& e) { return queue_.try_push({reinterpret_cast<uint8_t*>(&e), sizeof(e)}); }
   inline bool try_pop(ElementT& e) {
-    std::vector<uint8_t> v(sizeof(e));
+    thread_local std::vector<uint8_t> v(sizeof(e));
     if (queue_.try_pop(v)) {
       std::memcpy(&e, v.data(), sizeof(e));
       return true;
@@ -42,7 +57,7 @@ struct MpmcVarQueueAdapter {
     }
   }
   std::string description() { return "Mpmc variable-sized elements queue"; }
-  sham::MpmcQueue<Size * sizeof(ElementT)> queue_;
+  sham::MpmcQueue<next_power_of_two(Size * sizeof(ElementT))> queue_;
 };
 
 }  // namespace sham

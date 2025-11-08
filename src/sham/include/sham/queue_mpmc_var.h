@@ -8,8 +8,16 @@ MIT License - Copyright (c) 2025 Pierric Gimmig
 #include <span>
 #include <stdexcept>
 #include <vector>
+#include <iostream>
 
-#define CHECK(x) x
+#define CHECK(condition)                                                                   \
+  do {                                                                                     \
+    if (!(condition)) {                                                                    \
+      std::cerr << "CHECK failed: " << #condition << " at " << __FILE__ << ":" << __LINE__ \
+                << std::endl;                                                              \
+      throw std::runtime_error("CHECK failed");                                            \
+    }                                                                                      \
+  } while (false)
 
 namespace sham {
 
@@ -21,7 +29,11 @@ class MpmcQueue {
     std::atomic<int> size = 0;
   };
 
-  explicit MpmcQueue() : head_(0), tail_(0) { std::memset(data_, 0, sizeof(data_)); }
+  explicit MpmcQueue() : head_(0), tail_(0) {
+    static_assert(kCapacity >= kCacheLineSize, "kCapacity must be at least one cache line");
+    static_assert((kCapacity & (kCapacity - 1)) == 0, "kCapacity must be a power of 2");
+    std::memset(data_, 0, sizeof(data_));
+  }
   ~MpmcQueue() noexcept {}
   MpmcQueue(const MpmcQueue&) = delete;
   MpmcQueue& operator=(const MpmcQueue&) = delete;
@@ -30,7 +42,7 @@ class MpmcQueue {
     size_t block_size = align_to_cache_line(data.size() + sizeof(Header));
     while (true) {
       // Conservatively estimate free space, return false if insufficient
-      size_t tail = tail_.load(std::memory_order_relaxed);
+      size_t tail = tail_.load(std::memory_order_acquire);
       size_t head = head_.load(std::memory_order_acquire);
       if ((head + block_size + sizeof(Header) - tail) > kCapacity) {
         // Queue is too full for new block, try shrinking
@@ -38,8 +50,7 @@ class MpmcQueue {
         return false;
       }
       // Try to acquire write block by advancing head
-      if (head_.compare_exchange_weak(head, head + block_size, std::memory_order_release,
-                                      std::memory_order_acquire)) {
+      if (head_.compare_exchange_strong(head, head + block_size, std::memory_order_acq_rel)) {
         // Block acquired for write, initialize next block header
         Header* next_header = get_header(head + block_size);
         next_header->size.store(0, std::memory_order_relaxed);
@@ -48,7 +59,8 @@ class MpmcQueue {
         std::memcpy(static_cast<void*>(header + 1), data.data(), data.size());
         // Publish block to consumer by setting size, which must be zero initially
         int expected = 0;
-        CHECK(header->size.compare_exchange_strong(expected, static_cast<int>(data.size()), std::memory_order_release));
+        CHECK(header->size.compare_exchange_strong(expected, static_cast<int>(data.size()),
+                                                   std::memory_order_acq_rel));
         return true;
       }
     }
@@ -57,16 +69,15 @@ class MpmcQueue {
   bool try_pop(std::vector<uint8_t>& buffer) noexcept {
     size_t read = read_.load(std::memory_order_acquire);
     Header* header = get_header(read);
-    size_t size = header->size.load(std::memory_order_acquire);
-    if (size == 0) return false;
+    int size = header->size.load(std::memory_order_acquire);
+    if (size <= 0) return false;
     size_t block_size = align_to_cache_line(size + sizeof(Header));
-    if (read_.compare_exchange_strong(read, read + block_size, std::memory_order_release,
-                                      std::memory_order_relaxed)) {
+    if (read_.compare_exchange_strong(read, read + block_size, std::memory_order_acq_rel)) {
       // Block acquired for read, consume data
       buffer.resize(size);
       std::memcpy(buffer.data(), static_cast<void*>(header + 1), size);
       // Mark block as free
-      header->size.store(-static_cast<int>(block_size), std::memory_order_release);
+      header->size.store(-size, std::memory_order_release);
       shrink();
       return true;
     }
@@ -74,6 +85,7 @@ class MpmcQueue {
   }
 
   size_t shrink() noexcept {
+    CHECK(size() <= kCapacity);
     size_t space_reclaimed = 0;
     size_t tail = tail_.load(std::memory_order_acquire);
     while (true) {
@@ -81,8 +93,7 @@ class MpmcQueue {
       int size = header->size.load(std::memory_order_acquire);
       if (size >= 0) break;
       size_t new_tail = tail + align_to_cache_line(-size + sizeof(Header));
-      if (tail_.compare_exchange_strong(tail, new_tail, std::memory_order_release,
-                                         std::memory_order_acquire)) {
+      if (tail_.compare_exchange_strong(tail, new_tail, std::memory_order_acq_rel)) {
         space_reclaimed += (new_tail - tail);
       } else {
         break;
@@ -97,17 +108,13 @@ class MpmcQueue {
   bool empty() const noexcept { return size() == 0; }
   std::string description() { return "Variable-sized MPMC queue"; }
 
- private:
-  static constexpr void validate() {
-    static_assert(kCapacity >= kCacheLineSize, "kCapacity must be at least one cache line");
-    static_assert((kCapacity & (kCapacity - 1)) == 0, "kCapacity must be a power of 2");
-  }
-
-  static constexpr size_t kCacheLineSize = 128;
-  constexpr inline size_t idx(size_t i) const noexcept { return i & (kCapacity - 1); }
-  constexpr inline size_t align_to_cache_line(size_t size) {
+  static constexpr inline size_t align_to_cache_line(size_t size) {
     return (size + kCacheLineSize - 1) & ~(kCacheLineSize - 1);
   }
+
+ private:
+  static constexpr size_t kCacheLineSize = 128;
+  static constexpr inline size_t idx(size_t i) noexcept { return i & (kCapacity - 1); }
   constexpr inline Header* get_header(size_t index) noexcept {
     return reinterpret_cast<Header*>(&data_[idx(index)]);
   }

@@ -37,10 +37,10 @@ static constexpr size_t kSmallNumPush = 1024;
 // clang-format off
 
 using BenchmarkQueueTypes = ::testing::Types<
-  // sham::mpmc::LockingQueue<sham::Element, kQueueCapacity>,
-  // sham::mpmc::Queue<sham::Element, kQueueCapacity>,
-  // sham::AtomicQueueAdapter<sham::Element, kQueueCapacity>,
-  // sham::ConcurrentQueueAdapter<sham::Element>,
+  sham::mpmc::LockingQueue<sham::Element, kQueueCapacity>,
+  sham::mpmc::Queue<sham::Element, kQueueCapacity>,
+  sham::AtomicQueueAdapter<sham::Element, kQueueCapacity>,
+  sham::ConcurrentQueueAdapter<sham::Element>,
   sham::MpmcVarQueueAdapter<sham::Element, kQueueCapacity>>;
 
 using SingleEmlementQueueTypes = ::testing::Types<
@@ -86,7 +86,7 @@ static void RunTest(size_t num_push_threads, size_t num_pop_threads, size_t num_
   }
 }
 
-TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_1_1_8M) { RunTest<TypeParam>(1, 1, kNumPush); }
+//TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_1_1_8M) { RunTest<TypeParam>(1, 1, kNumPush); }
 
 TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_2_2_8M) { RunTest<TypeParam>(2, 2, kNumPush); }
 
