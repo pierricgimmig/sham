@@ -30,17 +30,18 @@ SOFTWARE.
 #include "sham/benchmark.h"
 #include "sham/queue_locking.h"
 
-static constexpr size_t kQueueCapacity = 1 * 1024 * 1024 - 1;
+// static constexpr size_t kQueueCapacity = 1 * 1024 * 1024 - 1;
+static constexpr size_t kQueueCapacity = 128-1;
 static constexpr size_t kNumPush = 8 * 1024 * 1024;
 static constexpr size_t kSmallNumPush = 1024;
 
 // clang-format off
 
 using BenchmarkQueueTypes = ::testing::Types<
-  sham::mpmc::LockingQueue<sham::Element, kQueueCapacity>,
-  sham::mpmc::Queue<sham::Element, kQueueCapacity>,
-  sham::AtomicQueueAdapter<sham::Element, kQueueCapacity>,
-  sham::ConcurrentQueueAdapter<sham::Element>,
+  //sham::mpmc::LockingQueue<sham::Element, kQueueCapacity>,
+  //sham::mpmc::Queue<sham::Element, kQueueCapacity>,
+  //sham::AtomicQueueAdapter<sham::Element, kQueueCapacity>,
+  //sham::ConcurrentQueueAdapter<sham::Element>,
   sham::MpmcVarQueueAdapter<sham::Element, kQueueCapacity>>;
 
 using SingleEmlementQueueTypes = ::testing::Types<
@@ -86,21 +87,23 @@ static void RunTest(size_t num_push_threads, size_t num_pop_threads, size_t num_
   }
 }
 
-//TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_1_1_8M) { RunTest<TypeParam>(1, 1, kNumPush); }
+TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_1_1_8M) { RunTest<TypeParam>(1, 1, kNumPush); }
+
+TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_2_1_8M) { RunTest<TypeParam>(2, 1, kNumPush); }
 
 TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_2_2_8M) { RunTest<TypeParam>(2, 2, kNumPush); }
 
-// TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_4_4_8M) { RunTest<TypeParam>(4, 4, kNumPush); }
+TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_4_4_8M) { RunTest<TypeParam>(4, 4, kNumPush); }
 
-// TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_8_8_8M) { RunTest<TypeParam>(8, 8, kNumPush); }
+TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_8_8_8M) { RunTest<TypeParam>(8, 8, kNumPush); }
 
-// TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_16_16_8M) { RunTest<TypeParam>(16, 16, kNumPush); }
+TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_16_16_8M) { RunTest<TypeParam>(16, 16, kNumPush); }
 
-// TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_16_1_8M) { RunTest<TypeParam>(16, 1, kNumPush); }
+TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_16_1_8M) { RunTest<TypeParam>(16, 1, kNumPush); }
 
-// TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_32_1_8M) { RunTest<TypeParam>(32, 1, kNumPush); }
+TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_32_1_8M) { RunTest<TypeParam>(32, 1, kNumPush); }
 
-// TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_1_16_8M) { RunTest<TypeParam>(1, 16, kNumPush); }
+TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_1_16_8M) { RunTest<TypeParam>(1, 16, kNumPush); }
 
 TYPED_TEST(SingleElementMpmcTest, SameNumberOfPushAndPopSingleElementQueue_4_4_1K) {
   RunTest<TypeParam>(4, 4, kSmallNumPush);
