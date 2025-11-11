@@ -40,6 +40,7 @@ class MpmcQueue {
     static_assert(kCapacity >= kCacheLineSize, "kCapacity must be at least one cache line");
     static_assert((kCapacity & (kCapacity - 1)) == 0, "kCapacity must be a power of 2");
     std::memset(data_, 0, sizeof(data_));
+    *reinterpret_cast<int*>(data_) = kReadyToFill;
   }
   ~MpmcQueue() noexcept {}
   MpmcQueue(const MpmcQueue&) = delete;
@@ -47,10 +48,15 @@ class MpmcQueue {
 
   bool try_push(std::span<uint8_t> data) noexcept {
     size_t block_size = align_to_cache_line(data.size() + sizeof(Header));
-    while (true) {
+    for(;;) {
       // Conservatively estimate free space, return false if insufficient
       size_t tail = tail_.load(std::memory_order_acquire);
       size_t head = head_.load(std::memory_order_acquire);
+      static volatile int do_print = 0;
+      if (do_print > 0) {
+        print();
+        --do_print;
+      }
       if ((head + block_size + sizeof(Header) - tail) > kCapacity) {
         // Queue is too full for new block, try shrinking
         if (shrink()) continue;
@@ -60,19 +66,14 @@ class MpmcQueue {
       if (head_.compare_exchange_strong(head, head + block_size, std::memory_order_acq_rel)) {
         // Block acquired for write, initialize next block header
         Header* next_header = get_header(head + block_size);
-        next_header->size.store(0, std::memory_order_release);
+        next_header->size.store(kReadyToFill, std::memory_order_release);
         // Store data, always contiguous thanks to mapping memory space twice
         Header* header = get_header(head);
         std::memcpy(static_cast<void*>(header + 1), data.data(), data.size());
         // Publish block to consumer by setting size, which must be zero initially
-        while (header->size.load(std::memory_order_acquire) != 0);
-        int expected = 0;
-        if (!header->size.compare_exchange_strong(expected, static_cast<int>(data.size()),
-                                                  std::memory_order_acq_rel)) {
-          std::cout << "CAS failed, got " << expected << " instead of 0 when reading idx "
-                    << idx(head) / 128 << std::endl;
-          print();
-          exit(1);
+        int expected = kReadyToFill;
+        while (!header->size.compare_exchange_weak(expected, static_cast<int>(data.size()),
+                                                   std::memory_order_acq_rel)) {
         }
         return true;
       }
@@ -83,6 +84,11 @@ class MpmcQueue {
     size_t read = read_.load(std::memory_order_acquire);
     Header* header = get_header(read);
     int size = header->size.load(std::memory_order_acquire);
+    static volatile int do_print = 0;
+    if (do_print > 0) {
+      print();
+      --do_print;
+    }
     if (size <= 0) return false;
     size_t block_size = align_to_cache_line(size + sizeof(Header));
     if (read_.compare_exchange_strong(read, read + block_size, std::memory_order_acq_rel)) {
@@ -105,7 +111,7 @@ class MpmcQueue {
     // CHECK(size() <= kCapacity); // this has fired once
     size_t space_reclaimed = 0;
     size_t tail = tail_.load(std::memory_order_acquire);
-    while (true) {
+    for (;;) {
       Header* header = get_header(tail);
       int size = header->size.load(std::memory_order_acquire);
       if (size >= 0) break;
@@ -123,21 +129,23 @@ class MpmcQueue {
   void print() {
     size_t elem_size = 128;
     size_t num_elems = kCapacity / elem_size;
-    std::cout << "num elements: " << num_elems << std::endl;
-    std::cout << "num pops: " << num_pops << std::endl;
-    for (size_t i = 0; i < num_elems; ++i) {
-      std::cout << std::setw(2) << i << "|";
-    }
-    std::cout << std::endl;
-    for (size_t i = 0; i < num_elems; ++i) {
-      uint8_t* ptr = &data_[i * elem_size];
-      Header* header = reinterpret_cast<Header*>(ptr);
-      std::cout << std::setw(2) << header->size.load() << "|";
-    }
-    std::cout << std::endl;
+    size_t num_displayed_elems = 32;
     size_t head = head_.load();
     size_t read = read_.load();
     size_t tail = tail_.load();
+
+    size_t start = tail >= num_displayed_elems*elem_size / 2 ? tail - num_displayed_elems*elem_size / 2 : 0;
+    std::cout << "num pops: " << num_pops << std::endl;
+    for (size_t i = start; i < start + num_displayed_elems; i += elem_size) {
+      
+      std::cout << std::setw(5) << i << "|";
+    }
+    std::cout << std::endl;
+    for (size_t i = start; i < start + num_displayed_elems*elem_size; i+=elem_size) {
+      Header* header = get_header(i);
+      std::cout << std::setw(5) << header->size.load() << "|";
+    }
+    std::cout << std::endl;
     std::cout << "head: " << idx(head) / 128.f << " (" << head / 128.f << ")" << std::endl;
     std::cout << "read: " << idx(read) / 128.f << " (" << read / 128.f << ")" << std::endl;
     std::cout << "tail: " << idx(tail) / 128.f << " (" << tail / 128.f << ")" << std::endl;
@@ -174,6 +182,7 @@ class MpmcQueue {
   //+    }
   //+  }
 
+  static constexpr int kReadyToFill = 0;
   size_t capacity_ = kCapacity;  // debug
   size_t num_pops = 0;
   alignas(kCacheLineSize) std::atomic<size_t> head_;

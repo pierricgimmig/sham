@@ -30,8 +30,8 @@ SOFTWARE.
 #include "sham/benchmark.h"
 #include "sham/queue_locking.h"
 
-// static constexpr size_t kQueueCapacity = 1 * 1024 * 1024 - 1;
-static constexpr size_t kQueueCapacity = 128-1;
+static constexpr size_t kQueueCapacity = 1 * 1024 * 1024 - 1;
+//static constexpr size_t kQueueCapacity = 128-1;
 static constexpr size_t kNumPush = 8 * 1024 * 1024;
 static constexpr size_t kSmallNumPush = 1024;
 

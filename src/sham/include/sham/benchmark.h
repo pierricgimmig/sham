@@ -218,9 +218,9 @@ class Benchmark {
 
  private:
   std::unique_ptr<QueueT> queue_;
-  std::atomic<size_t> num_elements_to_push_;
-  std::atomic<size_t> num_popped_elements_;
-  std::atomic<size_t> num_unregistered_threads_;
+  std::atomic<size_t> num_elements_to_push_ = {};
+  std::atomic<size_t> num_popped_elements_ = {};
+  std::atomic<size_t> num_unregistered_threads_ = {};
 
   size_t num_push_threads_ = 0;
   size_t num_pop_threads_ = 0;
