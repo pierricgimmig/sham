@@ -143,10 +143,23 @@ class Benchmark {
     summary.million_pop_operations_per_second = pop_result_.MillionOperationsPerSecond();
   }
 
+  void RunSimple(){
+    uint64_t id = 4;
+    for (uint64_t i = 0; i < num_elements_to_push_; ++i)
+        queue_->push({id, id, i});
+
+    Element element;
+    for (uint64_t i = 0; i < num_elements_to_push_; ++i)
+    {
+        queue_->try_pop(element);
+        std::cout << "i: " << i << " element[" << element.value << "]" << std::endl;
+    }
+  }
+
   size_t GetRequestedNumElementsToPush() const { return num_elements_to_push_; }
   size_t GetNumPushedElements() const { return push_result_.TotalNumOperations(); }
   size_t GetNumPoppedElements() const { return pop_result_.TotalNumOperations(); }
-  const QueueT* GetQueue() const { return queue_.get(); }
+  QueueT* GetQueue() const { return queue_.get(); }
 
  private:
   void LaunchPushThreads() {

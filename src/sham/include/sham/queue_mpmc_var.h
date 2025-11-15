@@ -150,8 +150,10 @@ class MpmcQueue {
     std::cout << "tail: " << idx(tail) / 128.f << " (" << tail / 128.f << ")" << std::endl;
   }
 
-  size_t size() const noexcept {
-    return head_.load(std::memory_order_relaxed) - tail_.load(std::memory_order_relaxed);
+  size_t size() noexcept {
+    shrink();
+    constexpr size_t mask = ~static_cast<size_t>(3);
+    return head_.load(std::memory_order_acquire)&mask - tail_.load(std::memory_order_acquire);
   }
   bool empty() const noexcept { return size() == 0; }
   std::string description() { return "Variable-sized MPMC queue"; }

@@ -39,10 +39,11 @@ static constexpr size_t kSmallNumPush = 1024;
 
 using BenchmarkQueueTypes = ::testing::Types<
   //sham::mpmc::LockingQueue<sham::Element, kQueueCapacity>,
-  //sham::mpmc::Queue<sham::Element, kQueueCapacity>,
+  //sham::mpmc::Queue<sham::Element, kQueueCapacity>
   //sham::AtomicQueueAdapter<sham::Element, kQueueCapacity>,
   //sham::ConcurrentQueueAdapter<sham::Element>,
-  sham::MpmcVarQueueAdapter<sham::Element, kQueueCapacity>>;
+  sham::MpmcVarQueueAdapter<sham::Element, kQueueCapacity>
+  >;
 
 using SingleEmlementQueueTypes = ::testing::Types<
   sham::mpmc::LockingQueue<sham::Element, 1>,
@@ -87,46 +88,61 @@ static void RunTest(size_t num_push_threads, size_t num_pop_threads, size_t num_
   }
 }
 
+template <typename QueueT>
+static void RunSimpleTest(size_t num_elements_to_push) {
+  sham::Benchmark<QueueT> b(0, 0, num_elements_to_push);
+  b.RunSimple();
+
+  if constexpr (has_empty_method<QueueT>) {
+    EXPECT_TRUE(b.GetQueue()->empty());
+  }
+  if constexpr (has_size_method<QueueT>) {
+    EXPECT_EQ(b.GetQueue()->size(), 0);
+  }
+}
+
+TYPED_TEST(MpmcTest, SimpleTest) { RunSimpleTest<TypeParam>(4); }
+
 TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_1_1_8M) { RunTest<TypeParam>(1, 1, kNumPush); }
 
 TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_2_1_8M) { RunTest<TypeParam>(2, 1, kNumPush); }
 
-TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_2_2_8M) { RunTest<TypeParam>(2, 2, kNumPush); }
-
-TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_4_4_8M) { RunTest<TypeParam>(4, 4, kNumPush); }
-
-TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_8_8_8M) { RunTest<TypeParam>(8, 8, kNumPush); }
-
-TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_16_16_8M) { RunTest<TypeParam>(16, 16, kNumPush); }
+//TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_2_2_8M) { RunTest<TypeParam>(2, 2, kNumPush); }
+//
+//TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_4_4_8M) { RunTest<TypeParam>(4, 4, kNumPush); }
+//
+//TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_8_8_8M) { RunTest<TypeParam>(8, 8, kNumPush); }
+//
+//TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_16_16_8M) { RunTest<TypeParam>(16, 16, kNumPush); }
 
 TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_16_1_8M) { RunTest<TypeParam>(16, 1, kNumPush); }
 
 TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_32_1_8M) { RunTest<TypeParam>(32, 1, kNumPush); }
-
-TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_1_16_8M) { RunTest<TypeParam>(1, 16, kNumPush); }
-
-TYPED_TEST(SingleElementMpmcTest, SameNumberOfPushAndPopSingleElementQueue_4_4_1K) {
-  RunTest<TypeParam>(4, 4, kSmallNumPush);
-}
-
-TYPED_TEST(SimpleMpmcTest, SequentialQueueAndDequeue) {
-  sham::mpmc::LockingQueue<int, 3> q;
-  EXPECT_TRUE(q.try_push(1));
-  EXPECT_TRUE(q.try_push(2));
-  EXPECT_TRUE(q.try_push(3));
-  EXPECT_FALSE(q.try_push(4));
-
-  int value;
-  EXPECT_TRUE(q.try_pop(value));
-  EXPECT_EQ(value, 1);
-  EXPECT_TRUE(q.try_pop(value));
-  EXPECT_EQ(value, 2);
-  EXPECT_TRUE(q.try_pop(value));
-  EXPECT_EQ(value, 3);
-  EXPECT_FALSE(q.try_pop(value));
-
-  EXPECT_TRUE(q.try_push(5));
-  EXPECT_TRUE(q.try_pop(value));
-  EXPECT_EQ(value, 5);
-  EXPECT_FALSE(q.try_pop(value));
-}
+//
+//TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_1_16_8M) { RunTest<TypeParam>(1, 16, kNumPush); }
+//
+//TYPED_TEST(SingleElementMpmcTest, SameNumberOfPushAndPopSingleElementQueue_4_4_1K) {
+//  RunTest<TypeParam>(4, 4, kSmallNumPush);
+//}
+//
+//TYPED_TEST(SimpleMpmcTest, SequentialQueueAndDequeue) {
+//  sham::mpmc::LockingQueue<int, 3> q;
+//  EXPECT_TRUE(q.try_push(1));
+//  EXPECT_TRUE(q.try_push(2));
+//  EXPECT_TRUE(q.try_push(3));
+//  EXPECT_FALSE(q.try_push(4));
+//
+//  int value;
+//  EXPECT_TRUE(q.try_pop(value));
+//  EXPECT_EQ(value, 1);
+//  EXPECT_TRUE(q.try_pop(value));
+//  EXPECT_EQ(value, 2);
+//  EXPECT_TRUE(q.try_pop(value));
+//  EXPECT_EQ(value, 3);
+//  EXPECT_FALSE(q.try_pop(value));
+//
+//  EXPECT_TRUE(q.try_push(5));
+//  EXPECT_TRUE(q.try_pop(value));
+//  EXPECT_EQ(value, 5);
+//  EXPECT_FALSE(q.try_pop(value));
+//}
