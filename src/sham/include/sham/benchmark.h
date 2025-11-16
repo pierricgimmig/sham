@@ -226,6 +226,7 @@ class Benchmark {
                            pop_result_.MillionOperationsPerSecond());
     push_result_.Print();
     pop_result_.Print();
+    //queue_->print();
     std::cout << std::endl;
   }
 

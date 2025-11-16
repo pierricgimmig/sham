@@ -56,6 +56,7 @@ struct MpmcVarQueueAdapter {
       return false;
     }
   }
+  inline void print() { queue_.print(); }
   size_t size() { return queue_.size(); }
   std::string description() { return "Mpmc variable-sized elements queue"; }
   sham::MpmcQueue<next_power_of_two(Size * sizeof(ElementT))> queue_;

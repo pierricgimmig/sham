@@ -110,8 +110,8 @@ class MpmcQueue {
   inline size_t shrink() noexcept {
     // CHECK(size() <= kCapacity); // this has fired once
     size_t space_reclaimed = 0;
-    size_t tail = tail_.load(std::memory_order_acquire);
     for (;;) {
+      size_t tail = tail_.load(std::memory_order_acquire);
       Header* header = get_header(tail);
       int size = header->size.load(std::memory_order_acquire);
       if (size >= 0) break;
