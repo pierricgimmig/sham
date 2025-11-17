@@ -11,21 +11,6 @@ MIT License - Copyright (c) 2025 Pierric Gimmig
 #include <stdexcept>
 #include <vector>
 
-void do_abort() {
-  // abort
-  abort();
-}
-
-// #define CHECK
-#define CHECK(condition)                                                                   \
-  do {                                                                                     \
-    if (!(condition)) {                                                                    \
-      std::cerr << "CHECK failed: " << #condition << " at " << __FILE__ << ":" << __LINE__ \
-                << std::endl;                                                              \
-      do_abort();                                                                          \
-    }                                                                                      \
-  } while (false)
-
 namespace sham {
 
 // Bounded shared-memory-friendly lock-free variable-sized elements MPMC queue.
@@ -61,15 +46,14 @@ class MpmcQueue {
       // We can only advance head once it's been incremented (next size has been set to zero)
       head = head + 1;
       if (head_.compare_exchange_strong(head, new_head, std::memory_order_acq_rel)) {
-        // Initialize next header while we have head exclusivity
+        // Initialize next header while we have exclusivity
         Header* next_header = get_header(new_head);
         next_header->size.store(0, std::memory_order_relaxed);
         head_.store(new_head + 1, std::memory_order_release);
 
+        // Write, handling wrap-around, then publish to consumer by setting size
         Header* header = get_header(head);
-        // Write, handling wrap-around
         write(reinterpret_cast<uint8_t*>(header + 1), data);
-        // Publish block to consumer by setting size
         header->size.store(static_cast<int>(data.size()), std::memory_order_release);
         return true;
       }
@@ -110,38 +94,12 @@ class MpmcQueue {
     return space_reclaimed;
   }
 
-  void print() {
-    size_t elem_size = 128;
-    size_t num_elems = kCapacity / elem_size;
-    size_t num_displayed_elems = 32;
-    size_t head = head_.load();
-    size_t read = read_.load();
-    size_t tail = tail_.load();
-
-    size_t start = tail >= num_displayed_elems * elem_size / 2
-                       ? tail - num_displayed_elems * elem_size / 2
-                       : 0;
-    for (size_t i = start; i < start + num_displayed_elems; i += elem_size) {
-      std::cout << std::setw(5) << i << "|";
-    }
-    std::cout << std::endl;
-    for (size_t i = start; i < start + num_displayed_elems * elem_size; i += elem_size) {
-      Header* header = get_header(i);
-      std::cout << std::setw(5) << header->size.load() << "|";
-    }
-    std::cout << std::endl;
-    std::cout << "head: " << idx(head) / 128.f << " (" << head / 128.f << ")" << std::endl;
-    std::cout << "read: " << idx(read) / 128.f << " (" << read / 128.f << ")" << std::endl;
-    std::cout << "tail: " << idx(tail) / 128.f << " (" << tail / 128.f << ")" << std::endl;
-  }
-
   size_t size() noexcept {
     shrink();
     return (head_.load(std::memory_order_acquire) & ~size_t(1)) -
            tail_.load(std::memory_order_acquire);
   }
   bool empty() const noexcept { return size() == 0; }
-  std::string description() { return "Variable-sized MPMC queue"; }
 
   static constexpr inline size_t align_to_cache_line(size_t size) {
     return (size + kCacheLineSize - 1) & ~(kCacheLineSize - 1);
@@ -151,8 +109,7 @@ class MpmcQueue {
   static constexpr size_t kCacheLineSize = 128;
   static constexpr inline size_t idx(size_t i) noexcept { return i & (kCapacity - 1); }
   constexpr inline Header* get_header(size_t index) noexcept {
-    index = (index & ~static_cast<size_t>(3));
-    CHECK((idx(index) & (kCacheLineSize - 1)) == 0);
+    index = (index & ~size_t(1));
     return reinterpret_cast<Header*>(&data_[idx(index)]);
   }
 
@@ -173,12 +130,10 @@ class MpmcQueue {
     }
   }
 
-  size_t capacity_ = kCapacity;  // debug
   alignas(kCacheLineSize) std::atomic<size_t> head_;
   alignas(kCacheLineSize) std::atomic<size_t> tail_;
   alignas(kCacheLineSize) std::atomic<size_t> read_;
   alignas(kCacheLineSize) uint8_t data_[kCapacity];
-  // should map the data_ buffer twice in memory
 };
 
 }  // namespace sham
