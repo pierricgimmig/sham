@@ -44,7 +44,7 @@ class MpmcQueue {
       // Try to acquire write block by advancing head
       size_t new_head = head + block_size;
       // We can only advance head once it's been incremented (next size has been set to zero)
-      head = head + 1;
+      head += 1;
       if (head_.compare_exchange_strong(head, new_head, std::memory_order_acq_rel)) {
         // Initialize next header while we have exclusivity
         Header* next_header = get_header(new_head);
