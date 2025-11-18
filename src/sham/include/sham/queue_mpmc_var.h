@@ -33,12 +33,10 @@ class MpmcQueue {
   bool try_push(std::span<uint8_t> data) noexcept {
     size_t block_size = align_to_cache_line(data.size() + sizeof(Header));
     for (;;) {
-      // Conservatively estimate free space, return false if insufficient
+      // Compute free space lower bound, return false if insufficient
       size_t tail = tail_.load(std::memory_order_acquire);
       size_t head = head_.load(std::memory_order_acquire) & ~size_t(1);
       if ((head + block_size + sizeof(Header) - tail) > kCapacity) {
-        // Queue is too full for new block, try shrinking
-        if (shrink()) continue;
         return false;
       }
       // Try to acquire write block by advancing head
@@ -64,8 +62,7 @@ class MpmcQueue {
     size_t read = read_.load(std::memory_order_acquire);
     Header* header = get_header(read);
     // the current header size is only valid once head_ has been incremented
-    while (head_.load(std::memory_order_acquire) == read)
-      ;
+    while (head_.load(std::memory_order_acquire) == read);
     int size = header->size.load(std::memory_order_acquire);
     if (size <= 0) return false;
     size_t new_read = read + align_to_cache_line(size + sizeof(Header));
