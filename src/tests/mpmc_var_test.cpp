@@ -5,17 +5,16 @@
 #include <cstdint>
 #include <span>
 
-constexpr size_t kTestQueueCapacity = 1024;
+constexpr size_t kTestQueueCapacity = 128*1024;
 
 TEST(MpmcQueueTest, PushAndPopSingleElement) {
   sham::MpmcQueue<kTestQueueCapacity> queue;
 
   // Data to push
   std::vector<uint8_t> data_to_push = {1, 2, 3, 4, 5};
-  std::span<uint8_t> data_span(data_to_push);
 
   // Push data
-  EXPECT_TRUE(queue.try_push(data_span));
+  EXPECT_TRUE(queue.try_push(data_to_push));
 
   // Pop data
   std::vector<uint8_t> popped_data;
@@ -33,14 +32,13 @@ TEST(MpmcQueueTest, PushAndPopMultipleElements) {
 
   // Push multiple elements
   for (uint8_t i = 0; i < 10; ++i) {
-    std::vector<uint8_t> data_to_push = {i, i + 1, i + 2};
-    std::span<uint8_t> data_span(data_to_push);
-    EXPECT_TRUE(queue.try_push(data_span));
+    std::vector<uint8_t> data_to_push = {static_cast<uint8_t>(i), static_cast<uint8_t>(i + 1), static_cast<uint8_t>(i + 2)};
+    EXPECT_TRUE(queue.try_push(data_to_push));
   }
 
   // Pop and verify elements
   for (uint8_t i = 0; i < 10; ++i) {
-    std::vector<uint8_t> expected_data = {i, i + 1, i + 2};
+    std::vector<uint8_t> expected_data = {static_cast<uint8_t>(i), static_cast<uint8_t>(i + 1), static_cast<uint8_t>(i + 2)};
     std::vector<uint8_t> popped_data;
     EXPECT_TRUE(queue.try_pop(popped_data));
     EXPECT_EQ(expected_data, popped_data);
@@ -55,10 +53,9 @@ TEST(MpmcQueueTest, QueueCapacityLimit) {
 
   // Fill the queue to capacity
   std::vector<uint8_t> data_to_push(128, 42);  // 128 bytes of data
-  std::span<uint8_t> data_span(data_to_push);
   size_t pushes = 0;
 
-  while (queue.try_push(data_span)) {
+  while (queue.try_push(data_to_push)) {
     ++pushes;
   }
 
@@ -67,7 +64,7 @@ TEST(MpmcQueueTest, QueueCapacityLimit) {
   EXPECT_LE(pushes * (128 + sizeof(sham::MpmcQueue<kTestQueueCapacity>::Header)), kTestQueueCapacity);
 
   // Ensure no more elements can be pushed
-  EXPECT_FALSE(queue.try_push(data_span));
+  EXPECT_FALSE(queue.try_push(data_to_push));
 }
 
 TEST(MpmcQueueTest, PopFromEmptyQueue) {

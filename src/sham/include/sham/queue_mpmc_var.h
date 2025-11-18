@@ -96,7 +96,7 @@ class MpmcQueue {
     return (head_.load(std::memory_order_acquire) & ~size_t(1)) -
            tail_.load(std::memory_order_acquire);
   }
-  bool empty() const noexcept { return size() == 0; }
+  bool empty() noexcept { return size() == 0; }
 
   static constexpr inline size_t align_to_cache_line(size_t size) {
     return (size + kCacheLineSize - 1) & ~(kCacheLineSize - 1);
