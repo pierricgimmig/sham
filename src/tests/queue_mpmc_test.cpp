@@ -79,12 +79,12 @@ static void RunTest(size_t num_push_threads, size_t num_pop_threads, size_t num_
   b.Run();
 
   EXPECT_EQ(b.GetNumPushedElements(), b.GetNumPoppedElements());
-  EXPECT_EQ(b.GetNumPushedElements(), num_elements_to_push);
-
+    EXPECT_EQ(b.GetNumPushedElements(), num_elements_to_push);
+  
   if constexpr (has_empty_method<QueueT>) {
-    EXPECT_TRUE(b.GetQueue()->empty());
-  }
-  if constexpr (has_size_method<QueueT>) {
+  EXPECT_TRUE(b.GetQueue()->empty());
+}
+if constexpr (has_size_method<QueueT>) {
     EXPECT_EQ(b.GetQueue()->size(), 0);
   }
 }

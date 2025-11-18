@@ -23,6 +23,7 @@ include(GoogleTest)
 add_executable(sham_tests)
 
 target_sources(sham_tests PRIVATE
+    mpmc_var_test.cpp
     queue_mpmc_test.cpp
     shared_memory_buffer_test.cpp
     shared_memory_test.cpp)
