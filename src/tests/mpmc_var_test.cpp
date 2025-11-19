@@ -1,5 +1,6 @@
 #include "gtest/gtest.h"
 #include "sham/queue_mpmc_var.h"
+#include "sham/benchmark.h"
 
 #include <vector>
 #include <cstdint>
@@ -73,4 +74,11 @@ TEST(MpmcQueueTest, PopFromEmptyQueue) {
   // Attempt to pop from an empty queue
   std::vector<uint8_t> popped_data;
   EXPECT_FALSE(queue.try_pop(popped_data));
+}
+
+TEST(MpmcQueueTest, RandomBufferInRandomChunks_8_8)
+{
+  sham::BenchmarkVariableSize<sham::MpmcQueue<4096> > b{8, 8};
+  b.Run();
+  //b.Print();
 }

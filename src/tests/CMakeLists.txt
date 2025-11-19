@@ -26,7 +26,8 @@ target_sources(sham_tests PRIVATE
     mpmc_var_test.cpp
     queue_mpmc_test.cpp
     shared_memory_buffer_test.cpp
-    shared_memory_test.cpp)
+    shared_memory_test.cpp
+    mpmc_var_test.cpp)
 
 target_link_libraries(sham_tests PRIVATE 
     adapters
