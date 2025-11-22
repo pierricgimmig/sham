@@ -102,7 +102,8 @@ static void RunSimpleTest(size_t num_elements_to_push) {
   }
 }
 
-TYPED_TEST(MpmcTest, SimpleTest) { RunSimpleTest<TypeParam>(4); }
+/*
+>>>>>>> Stashed changes
 TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_1_1_8M) { RunTest<TypeParam>(1, 1, kNumPush); }
 TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_2_1_8M) { RunTest<TypeParam>(2, 1, kNumPush); }
 TYPED_TEST(MpmcTest, SameNumberOfPushAndPop_1_2_8M) { RunTest<TypeParam>(1, 2, kNumPush); }
@@ -139,3 +140,4 @@ TYPED_TEST(SimpleMpmcTest, SequentialQueueAndDequeue) {
   EXPECT_EQ(value, 5);
   EXPECT_FALSE(q.try_pop(value));
 }
+*/

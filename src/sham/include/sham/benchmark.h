@@ -363,7 +363,8 @@ class BenchmarkVariableSize {
     std::vector<Chunk>& chunks = chunks_per_thread_id_[id];
     for (Chunk& chunk : chunks) {
       std::span<uint8_t> span{reinterpret_cast<uint8_t*>(&chunk), chunk.data_size()};
-      queue_->try_push(span);
+      while (!queue_->try_push(span))
+        ;
       ++result->num_operations;
     }
   }

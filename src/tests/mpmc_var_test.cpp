@@ -76,9 +76,20 @@ TEST(MpmcQueueTest, PopFromEmptyQueue) {
   EXPECT_FALSE(queue.try_pop(popped_data));
 }
 
+TEST(MpmcQueueTest, RandomBufferInRandomChunks_1_1)
+{
+  sham::BenchmarkVariableSize<sham::MpmcQueue<4096> > b{1, 1};
+  b.Run();
+}
+
+TEST(MpmcQueueTest, RandomBufferInRandomChunks_8_1)
+{
+  sham::BenchmarkVariableSize<sham::MpmcQueue<4096> > b{8, 1};
+  b.Run();
+}
+
 TEST(MpmcQueueTest, RandomBufferInRandomChunks_8_8)
 {
   sham::BenchmarkVariableSize<sham::MpmcQueue<4096> > b{8, 8};
   b.Run();
-  //b.Print();
 }
