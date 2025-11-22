@@ -5,7 +5,6 @@ MIT License - Copyright (c) 2025 Pierric Gimmig
 #pragma once
 
 #include <atomic>
-#include <iomanip>
 #include <iostream>
 #include <span>
 #include <stdexcept>
@@ -62,7 +61,8 @@ class MpmcQueue {
     size_t read = read_.load(std::memory_order_acquire);
     Header* header = get_header(read);
     // the current header size is only valid once head_ has been incremented
-    while (head_.load(std::memory_order_acquire) == read);
+    while (head_.load(std::memory_order_acquire) == read)
+      ;
     int size = header->size.load(std::memory_order_acquire);
     if (size <= 0) return false;
     size_t new_read = read + align_to_cache_line(size + sizeof(Header));

@@ -329,6 +329,8 @@ class BenchmarkVariableSize {
 
   size_t GetNumPushedElements() const { return push_result_.TotalNumOperations(); }
   size_t GetNumPoppedElements() const { return pop_result_.TotalNumOperations(); }
+  std::vector<uint8_t>& GetSendBuffer() { return send_buffer_; }
+  std::vector<uint8_t>& GetReceiveBuffer() { return receive_buffer_; }
   const QueueT* GetQueue() const { return queue_.get(); }
 
  private:

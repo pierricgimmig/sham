@@ -80,16 +80,23 @@ TEST(MpmcQueueTest, RandomBufferInRandomChunks_1_1)
 {
   sham::BenchmarkVariableSize<sham::MpmcQueue<4096> > b{1, 1};
   b.Run();
+  EXPECT_TRUE(b.GetSendBuffer() == b.GetReceiveBuffer());
+
+  // Modify the buffer data and check that the test fails
+  b.GetReceiveBuffer()[0]++;
+  EXPECT_FALSE(b.GetSendBuffer() == b.GetReceiveBuffer());
 }
 
 TEST(MpmcQueueTest, RandomBufferInRandomChunks_8_1)
 {
   sham::BenchmarkVariableSize<sham::MpmcQueue<4096> > b{8, 1};
   b.Run();
+  EXPECT_TRUE(b.GetSendBuffer() == b.GetReceiveBuffer());
 }
 
 TEST(MpmcQueueTest, RandomBufferInRandomChunks_8_8)
 {
   sham::BenchmarkVariableSize<sham::MpmcQueue<4096> > b{8, 8};
   b.Run();
+  EXPECT_TRUE(b.GetSendBuffer() == b.GetReceiveBuffer());
 }
