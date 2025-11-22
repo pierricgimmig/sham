@@ -12,7 +12,7 @@ MIT License - Copyright (c) 2025 Pierric Gimmig
 
 namespace sham {
 
-// Bounded shared-memory-friendly lock-free variable-sized elements MPMC queue.
+// Bounded shared-memory-friendly variable-sized elements MPMC queue.
 template <size_t kCapacity>
 class MpmcQueue {
  public:
@@ -92,7 +92,7 @@ class MpmcQueue {
   }
 
   size_t size() noexcept {
-    shrink();
+    shrink(); 
     return (head_.load(std::memory_order_acquire) & ~size_t(1)) -
            tail_.load(std::memory_order_acquire);
   }
