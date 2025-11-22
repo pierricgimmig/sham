@@ -89,7 +89,7 @@ TEST(MpmcQueueTest, RandomBufferInRandomChunks_1_1)
 
 TEST(MpmcQueueTest, RandomBufferInRandomChunks_8_1)
 {
-  sham::BenchmarkVariableSize<sham::MpmcQueue<4096> > b{8, 1};
+  sham::BenchmarkVariableSize<sham::MpmcQueue<16*4096> > b{8, 1};
   b.Run();
   EXPECT_TRUE(b.GetSendBuffer() == b.GetReceiveBuffer());
 }

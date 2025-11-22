@@ -296,7 +296,7 @@ class BenchmarkVariableSize {
         num_unregistered_threads_(num_push_threads + num_pop_threads),
         push_result_("push", num_push_threads),
         pop_result_("pop", num_pop_threads) {
-    send_buffer_ = generate_random_buffer(8 * 1024 * 1024);
+    send_buffer_ = generate_random_buffer(256 * 1024 * 1024);
     receive_buffer_.resize(send_buffer_.size(), 0);
 
     // Generate random chunks
