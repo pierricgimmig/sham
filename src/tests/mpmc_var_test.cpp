@@ -1,6 +1,7 @@
 #include "gtest/gtest.h"
 #include "sham/queue_mpmc_var.h"
 #include "sham/benchmark.h"
+#include "sham/timer.h"
 
 #include <vector>
 #include <cstdint>

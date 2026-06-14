@@ -257,6 +257,7 @@ class BenchmarkVariableSize {
   };
 
   static std::vector<uint8_t> generate_random_buffer(size_t size) {
+    PROFILING_SCOPE("GenerateRandomBuffer");
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_int_distribution<uint32_t> dist(0, 255);
@@ -269,6 +270,7 @@ class BenchmarkVariableSize {
 
   // Create spans of random sizes within [min, max] that cover the entire `buffer` with no overlap.
   static std::vector<Chunk> random_chunks(size_t min, size_t max, std::span<uint8_t> buffer) {
+    PROFILING_SCOPE("GenerateRandomChunks");
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_int_distribution<size_t> dist(min, max);
@@ -358,6 +360,7 @@ class BenchmarkVariableSize {
   }
 
   void PushThread(size_t id, ThreadResult* result) {
+    PROFILING_SCOPE("PushThread");
     result->id = id;
     size_t push_per_thread = num_elements_to_push_ / push_result_.threads.size();
     RegisterAndBusyWaitForAllThreads();
@@ -371,12 +374,21 @@ class BenchmarkVariableSize {
     }
   }
 
+  std::atomic<size_t> num_pop_tries = {};
+
   void PopThread(size_t id, ThreadResult* result) {
+    PROFILING_SCOPE("PopThread");
     result->id = id;
     std::vector<uint8_t> buffer(sizeof(Chunk), 0);
     RegisterAndBusyWaitForAllThreads();
     Timer timer(&result->duration_ns);
     while (num_popped_elements_ < num_elements_to_push_) {
+      num_pop_tries++;
+      if (num_pop_tries % 1024 == 0)
+      {
+        std::cout << "Pop thread " << id << " tried " << num_pop_tries << " times, popped "
+                  << num_popped_elements_ << " / " << num_elements_to_push_ << std::endl;
+      }
       if (queue_->try_pop(buffer)) {
         Chunk* chunk = reinterpret_cast<Chunk*>(buffer.data());
         std::memcpy(&receive_buffer_[chunk->offset], chunk->data, chunk->size);
