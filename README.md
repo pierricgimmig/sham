@@ -24,8 +24,9 @@ Most lock-free queue implementations allocate an internal buffer and store a poi
 ## Requirements
 
 - C++20 compiler (GCC 10+, Clang 10+, MSVC 2019+)
-- [CMake](https://cmake.org/) 3.14 or newer
-- For tests and benchmarks: `git` (CMake `FetchContent` downloads GoogleTest and Google Benchmark)
+- [CMake](https://cmake.org/) 3.14 or newer, **or** [Bazel](https://bazel.build/) 8 (via [Bazelisk](https://github.com/bazelbuild/bazelisk))
+- For CMake tests and benchmarks: `git` (`FetchContent` downloads GoogleTest and Google Benchmark)
+- For Bazel: network on the first fetch of [BCR](https://registry.bazel.build/) modules (GoogleTest, Google Benchmark)
 - POSIX platforms: `librt` on older glibc (linked automatically when present)
 
 ## Build
@@ -61,6 +62,21 @@ cmake --install build --prefix /usr/local
 
 This installs `include/sham/*.h`. The library is header-only; there is no binary to link beyond the platform shared-memory libraries already attached to the `sham` interface target.
 
+### Bazel
+
+The same targets are available through Bazel modules (`MODULE.bazel`). Pin is Bazel 8.2.1 (see `.bazelversion`).
+
+```bash
+bazel build //src/sham:sham
+bazel test //src/tests:sham_tests          # or: bazel test //:all_tests
+bazel run -c opt //src/benchmarks:sham_benchmarks
+bazel run -c opt //src/benchmarks:sham_queue_compare
+```
+
+`//src/sham:sham` is the header-only library (`#include "sham/..."`). Tests and benchmarks pull GoogleTest / Google Benchmark from the Bazel Central Registry. Vendored `atomic_queue` and `concurrentqueue` are local `//third_party` targets used only by adapters.
+
+Makefile wrappers: `make bazel-test`, `make bazel-bench`.
+
 ## Tests
 
 From the `build` directory (or via `make test`):
@@ -80,9 +96,14 @@ The suite covers:
 The heavier MPMC thread combinations use tens of thousands of operations so they stay CI-friendly. Throughput numbers printed by those tests are informational; use `sham_benchmarks` or the `sham::Benchmark` helper for real measurements.
 
 ```bash
-# Google Benchmark (push/pop microbenchmarks)
+# Google Benchmark (try_push / try_pop microbenchmarks)
 ./build/src/benchmarks/sham_benchmarks
+
+# Multi-threaded comparison across queue types (writes benchmark_summary.txt)
+./build/src/benchmarks/sham_queue_compare
 ```
+
+Or `make bench` / `bazel run -c opt //src/benchmarks:sham_queue_compare`.
 
 ## Usage
 
@@ -147,10 +168,11 @@ POSIX mapping names are normalized to start with `/` (for example `app_events` b
 ## Project layout
 
 ```
+MODULE.bazel / BUILD.bazel Bazel module and root aliases
 cmake/                     Find modules for bundled third-party queues
 src/sham/include/sham/     Public headers (the library)
 src/adapters/              Benchmark-only wrappers for external queues
-src/benchmarks/            Google Benchmark driver
+src/benchmarks/            Google Benchmark + multi-thread comparison
 src/tests/                 GoogleTest suite
 third_party/               Bundled atomic_queue and concurrentqueue
 ```
@@ -177,8 +199,8 @@ Public headers:
 
 ## Contributing
 
-1. Build and run the tests (`make test` or `ctest` as above).
-2. Format C++ in `src/` with the repo `.clang-format` (Google style, 100-column limit).
+1. Build and run the tests (`make test`, `ctest`, or `bazel test //src/tests:sham_tests`).
+2. Format C++ in `src/` with the repo `.clang-format` (Google style, 100-column limit). Keep CMake and Bazel targets in sync when adding sources.
 3. Keep changes focused: the queues are small, well-known algorithms; prefer local fixes over redesigns.
 
 Pull requests should add or update tests for any behavior change.

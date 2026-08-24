@@ -2,7 +2,7 @@ BUILD_DIR ?= build
 BUILD_TYPE ?= RelWithDebInfo
 CMAKE_FLAGS ?=
 
-.PHONY: all configure build test bench clean format
+.PHONY: all configure build test bench bazel-test bazel-bench clean format
 
 all: build
 
@@ -17,9 +17,18 @@ test: build
 
 bench: build
 	$(BUILD_DIR)/src/benchmarks/sham_benchmarks
+	$(BUILD_DIR)/src/benchmarks/sham_queue_compare
+
+bazel-test:
+	bazel test //src/tests:sham_tests
+
+bazel-bench:
+	bazel run -c opt //src/benchmarks:sham_benchmarks
+	bazel run -c opt //src/benchmarks:sham_queue_compare
 
 clean:
 	rm -rf $(BUILD_DIR)
+	-bazel clean
 
 format:
 	clang-format -i \

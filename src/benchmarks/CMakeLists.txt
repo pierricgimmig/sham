@@ -10,3 +10,12 @@ target_link_libraries(sham_benchmarks PRIVATE
     sham
     benchmark::benchmark
     benchmark::benchmark_main)
+
+add_executable(sham_queue_compare)
+
+target_sources(sham_queue_compare PRIVATE
+    queue_comparison.cpp)
+
+target_link_libraries(sham_queue_compare PRIVATE
+    adapters
+    sham)
