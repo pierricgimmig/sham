@@ -1,0 +1,22 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_binary(
+    name = "sham_benchmarks",
+    srcs = ["queue_mpmc_benchmarks.cpp"],
+    deps = [
+        "//src/adapters:adapters",
+        "//src/sham:sham",
+        "@google_benchmark//:benchmark_main",
+    ],
+)
+
+cc_binary(
+    name = "sham_queue_compare",
+    srcs = ["queue_comparison.cpp"],
+    deps = [
+        "//src/adapters:adapters",
+        "//src/sham:sham",
+    ],
+)

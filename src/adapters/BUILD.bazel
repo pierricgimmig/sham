@@ -1,0 +1,13 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "adapters",
+    hdrs = glob(["include/adapters/*.h"]),
+    includes = ["include"],
+    deps = [
+        "//third_party:atomic_queue",
+        "//third_party:concurrentqueue",
+    ],
+)

@@ -22,36 +22,33 @@ SOFTWARE.
 
 #pragma once
 
-#include <stdint.h>
-
-#include <iostream>
+#include <cstddef>
 #include <mutex>
-#include <vector>
+#include <string>
+#include <utility>
 
 namespace sham {
 namespace mpmc {
 
-// Locking mpmc queue. The push and pop operations block by busy waiting.
+// Mutex-protected MPMC queue. Blocking push/pop spin until they succeed.
+//
+// The mutex is not process-shared, so this queue is for in-process use and
+// as a baseline in benchmarks. Prefer Queue (lock-free) for shared memory.
 template <typename T, size_t kCapacity>
 class LockingQueue {
  public:
-  explicit LockingQueue() {
-    static_assert(kCapacity > 0);
-    static_assert(IsPowerOfTwoMinusOne(kCapacity));
-  }
-  ~LockingQueue() {}
+  explicit LockingQueue() { static_assert(kCapacity > 0); }
+  ~LockingQueue() = default;
 
   // non-copyable and non-movable
   LockingQueue(const LockingQueue&) = delete;
   LockingQueue& operator=(const LockingQueue&) = delete;
 
-  static constexpr bool IsPowerOfTwoMinusOne(std::size_t n) { return (n & (n + 1)) == 0; }
-
   template <typename... Args>
   bool try_emplace(Args&&... args) {
     std::lock_guard lk(mutex_);
     if (is_full(lk)) return false;
-    new (&data_[in_]) T(std::forward<Args>(args)...);
+    data_[in_] = T(std::forward<Args>(args)...);
     in_ = inc(in_);
     return true;
   }
@@ -63,14 +60,15 @@ class LockingQueue {
   }
 
   bool try_push(const T& v) { return try_emplace(v); }
-  bool try_push(T&& v) noexcept { return try_emplace(std::forward<T>(v)); }
+  bool try_push(T&& v) { return try_emplace(std::move(v)); }
 
   void push(const T& v) { emplace(v); }
+  void push(T&& v) { emplace(std::move(v)); }
 
   bool try_pop(T& v) {
     std::lock_guard lk(mutex_);
     if (in_ == out_) return false;
-    v = data_[out_];
+    v = std::move(data_[out_]);
     out_ = inc(out_);
     return true;
   }
@@ -83,8 +81,7 @@ class LockingQueue {
   [[nodiscard]] inline size_t size() const {
     std::lock_guard lk(mutex_);
     if (is_full(lk)) return kCapacity;
-    size_t size = (in_ + kInternalCapacity - out_) % kInternalCapacity;
-    return size;
+    return (in_ + kInternalCapacity - out_) % kInternalCapacity;
   }
 
   [[nodiscard]] inline bool empty() const {
@@ -108,7 +105,7 @@ class LockingQueue {
   [[nodiscard]] inline bool is_full(std::lock_guard<std::mutex>&) const { return inc(in_) == out_; }
 
  private:
-  T data_[kInternalCapacity];
+  T data_[kInternalCapacity]{};
   mutable std::mutex mutex_;
   size_t in_ = 0;
   size_t out_ = 0;

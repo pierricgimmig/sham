@@ -22,31 +22,31 @@ SOFTWARE.
 
 #pragma once
 
-#include <cstdio>
-#include <iostream>
-#include <memory>
+#include <atomic>
 #include <string>
-#include <typeinfo>
 
-namespace sham {
+#ifdef _WIN32
+#include <process.h>
+#else
+#include <unistd.h>
+#endif
 
-#define TRACE_VAR(x) std::cout << #x << " = " << x << std::endl
+namespace sham::test {
 
-template <typename... Args>
-std::string StrFormat(const std::string& format, Args... args) {
-  int size_s = std::snprintf(nullptr, 0, format.c_str(), args...) + 1;  // Extra space for '\0'
-  if (size_s <= 0) {
-    return "[error]";
-  }
-  auto size = static_cast<size_t>(size_s);
-  std::unique_ptr<char[]> buf(new char[size]);
-  std::snprintf(buf.get(), size, format.c_str(), args...);
-  return std::string(buf.get(), buf.get() + size - 1);  // We don't want the '\0' inside
+inline int CurrentPid() {
+#ifdef _WIN32
+  return _getpid();
+#else
+  return static_cast<int>(::getpid());
+#endif
 }
 
-template <typename T>
-static const char* TypeAsString() {
-  return typeid(T).name();
+// Unique POSIX/Windows mapping name for a test. POSIX names are kept short
+// because some platforms cap shm names at ~31 characters.
+inline std::string UniqueShmName(const char* suffix) {
+  static std::atomic<int> counter{0};
+  return std::string("s_") + suffix + "_" + std::to_string(CurrentPid() % 100000) + "_" +
+         std::to_string(counter.fetch_add(1));
 }
 
-}  // namespace sham
+}  // namespace sham::test

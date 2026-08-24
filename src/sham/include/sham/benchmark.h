@@ -20,10 +20,13 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
  */
 
+#pragma once
+
+#include <atomic>
+#include <cstdint>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
-#include <map>
 #include <memory>
 #include <string>
 #include <thread>
@@ -87,11 +90,12 @@ struct BenchmarkStats {
     return stats;
   }
   void Print(std::ostream& out = std::cout) const {
-    for (const auto& [desc, s] : benchmark_summaries) {
-      out << std::setw(32) << desc;
-      out << std::setw(8) << StrFormat(" %u %u ", s.num_push_threads, s.num_pop_threads);
-      out << StrFormat(" [%.2f/%.2f] Mops/s", s.million_push_operations_per_second,
-                       s.million_pop_operations_per_second)
+    out << std::left << std::setw(32) << "queue" << std::right
+        << "  push pop      [push/pop] Mops/s" << std::endl;
+    for (const BenchmarkSummary& s : benchmark_summaries) {
+      out << std::left << std::setw(32) << s.description << std::right
+          << StrFormat(" %4u %3u   [%.2f/%.2f] Mops/s", s.num_push_threads, s.num_pop_threads,
+                       s.million_push_operations_per_second, s.million_pop_operations_per_second)
           << std::endl;
     }
   }
@@ -107,7 +111,7 @@ struct BenchmarkStats {
     log_file.close();
     return true;
   }
-  std::map<std::string, BenchmarkSummary> benchmark_summaries;
+  std::vector<BenchmarkSummary> benchmark_summaries;
 
  private:
   BenchmarkStats() = default;
@@ -134,13 +138,13 @@ class Benchmark {
     pop_setup_thread.join();
     Print();
 
-    std::string description = queue_->description();
-    BenchmarkSummary& summary = BenchmarkStats::Get().benchmark_summaries[description];
-    summary.description = description;
+    BenchmarkSummary summary;
+    summary.description = queue_->description();
     summary.num_push_threads = num_push_threads_;
     summary.num_pop_threads = num_pop_threads_;
     summary.million_push_operations_per_second = push_result_.MillionOperationsPerSecond();
     summary.million_pop_operations_per_second = pop_result_.MillionOperationsPerSecond();
+    BenchmarkStats::Get().benchmark_summaries.push_back(summary);
   }
 
   size_t GetRequestedNumElementsToPush() const { return num_elements_to_push_; }
@@ -174,7 +178,11 @@ class Benchmark {
 
   void PushThread(size_t id, ThreadResult* result) {
     result->id = id;
-    size_t push_per_thread = num_elements_to_push_ / push_result_.threads.size();
+    const size_t thread_count = push_result_.threads.size();
+    size_t push_per_thread = num_elements_to_push_ / thread_count;
+    if (id == thread_count) {
+      push_per_thread += num_elements_to_push_ % thread_count;
+    }
     RegisterAndBusyWaitForAllThreads();
     Timer timer(&result->duration_ns);
     for (size_t i = 0; i < push_per_thread; ++i) {

@@ -1,0 +1,26 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "sham",
+    actual = "//src/sham:sham",
+)
+
+alias(
+    name = "sham_tests",
+    actual = "//src/tests:sham_tests",
+)
+
+alias(
+    name = "sham_benchmarks",
+    actual = "//src/benchmarks:sham_benchmarks",
+)
+
+alias(
+    name = "sham_queue_compare",
+    actual = "//src/benchmarks:sham_queue_compare",
+)
+
+test_suite(
+    name = "all_tests",
+    tests = ["//src/tests:sham_tests"],
+)

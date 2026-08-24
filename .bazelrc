@@ -1,0 +1,9 @@
+# C++20 for the header-only library, tests, and benchmarks.
+build --enable_platform_specific_config
+build:linux --cxxopt=-std=c++20 --host_cxxopt=-std=c++20
+build:macos --cxxopt=-std=c++20 --host_cxxopt=-std=c++20
+build:windows --cxxopt=/std:c++20 --host_cxxopt=/std:c++20
+
+test --test_output=errors
+test --test_timeout=120
+test --test_arg=--gtest_brief=0

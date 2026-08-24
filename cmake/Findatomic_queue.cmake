@@ -21,6 +21,6 @@
 add_library(atomic_queue INTERFACE IMPORTED GLOBAL)
 target_include_directories(atomic_queue SYSTEM
                            INTERFACE third_party/atomic_queue)
-target_compile_features(concurrentqueue INTERFACE cxx_std_11)
+target_compile_features(atomic_queue INTERFACE cxx_std_11)
 
 add_library(atomic_queue::atomic_queue ALIAS atomic_queue)
