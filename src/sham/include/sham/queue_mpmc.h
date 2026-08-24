@@ -30,6 +30,8 @@ SOFTWARE.
 #include <new>  // std::hardware_destructive_interference_size
 #include <stdexcept>
 #include <string>
+#include <type_traits>
+#include <utility>
 
 namespace sham {
 namespace mpmc {
@@ -85,10 +87,14 @@ class Queue {
 
  public:
   explicit Queue() : head_(0), tail_(0) {
+    static_assert(kCapacity >= 1, "Queue capacity must be at least 1");
     if (reinterpret_cast<size_t>(slots_) % alignof(Slot<T>) != 0) {
       throw std::bad_alloc();
     }
-    for (size_t i = 0; i < kInternalCapacity; ++i) {
+    // Construct exactly kCapacity slots. The original heap-allocated queue
+    // reserved one unused trailing slot to avoid false sharing with the next
+    // heap object; head_/tail_ are already on their own cache lines here.
+    for (size_t i = 0; i < kCapacity; ++i) {
       new (&slots_[i]) Slot<T>();
     }
     static_assert(alignof(Slot<T>) == hardwareInterferenceSize,
@@ -105,7 +111,7 @@ class Queue {
   }
 
   ~Queue() noexcept {
-    for (size_t i = 0; i < kInternalCapacity; ++i) {
+    for (size_t i = 0; i < kCapacity; ++i) {
       slots_[i].~Slot();
     }
   }
@@ -120,8 +126,7 @@ class Queue {
                   "T must be nothrow constructible with Args&&...");
     auto const head = head_.fetch_add(1);
     auto& slot = slots_[idx(head)];
-    while (turn(head) * 2 != slot.turn.load(std::memory_order_acquire))
-      ;
+    while (turn(head) * 2 != slot.turn.load(std::memory_order_acquire));
     slot.construct(std::forward<Args>(args)...);
     slot.turn.store(turn(head) * 2 + 1, std::memory_order_release);
   }
@@ -176,8 +181,7 @@ class Queue {
   void pop(T& v) noexcept {
     auto const tail = tail_.fetch_add(1);
     auto& slot = slots_[idx(tail)];
-    while (turn(tail) * 2 + 1 != slot.turn.load(std::memory_order_acquire))
-      ;
+    while (turn(tail) * 2 + 1 != slot.turn.load(std::memory_order_acquire));
     v = slot.move();
     slot.destroy();
     slot.turn.store(turn(tail) * 2 + 2, std::memory_order_release);
@@ -221,17 +225,15 @@ class Queue {
 
   [[nodiscard]] static size_t capacity() noexcept { return kCapacity; }
 
-  std::string description() { return "Rigtorp mpmc queue"; }
+  std::string description() const { return "Rigtorp mpmc queue"; }
 
  private:
-  constexpr size_t idx(size_t i) const noexcept { return i % kInternalCapacity; }
+  constexpr size_t idx(size_t i) const noexcept { return i % kCapacity; }
 
-  constexpr size_t turn(size_t i) const noexcept { return i / kInternalCapacity; }
-
-  static constexpr size_t kInternalCapacity = kCapacity + 1;
+  constexpr size_t turn(size_t i) const noexcept { return i / kCapacity; }
 
  private:
-  Slot<T> slots_[kInternalCapacity];
+  Slot<T> slots_[kCapacity];
 
   // Align to avoid false sharing between head_ and tail_
   alignas(hardwareInterferenceSize) std::atomic<size_t> head_;

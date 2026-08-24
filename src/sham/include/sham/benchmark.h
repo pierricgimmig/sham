@@ -20,6 +20,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
  */
 
+#pragma once
+
+#include <atomic>
+#include <cstdint>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -174,7 +178,11 @@ class Benchmark {
 
   void PushThread(size_t id, ThreadResult* result) {
     result->id = id;
-    size_t push_per_thread = num_elements_to_push_ / push_result_.threads.size();
+    const size_t thread_count = push_result_.threads.size();
+    size_t push_per_thread = num_elements_to_push_ / thread_count;
+    if (id == thread_count) {
+      push_per_thread += num_elements_to_push_ % thread_count;
+    }
     RegisterAndBusyWaitForAllThreads();
     Timer timer(&result->duration_ns);
     for (size_t i = 0; i < push_per_thread; ++i) {

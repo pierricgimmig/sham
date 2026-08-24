@@ -25,27 +25,34 @@ SOFTWARE.
 #include <atomic>
 #include <cassert>
 #include <cstddef>
-#include <memory>  // std::allocator
-#include <new>     // std::hardware_destructive_interference_size
-#include <stdexcept>
-#include <type_traits>  // std::enable_if, std::is_*_constructible
+#include <new>  // std::hardware_destructive_interference_size
+#include <type_traits>
+#include <utility>
 
 namespace sham {
 
+#if defined(__cpp_lib_hardware_interference_size) && !defined(__APPLE__)
+inline constexpr size_t kSpscCacheLineSize = std::hardware_destructive_interference_size;
+#else
+inline constexpr size_t kSpscCacheLineSize = 64;
+#endif
+
 // NOTE: This is a copy of https://github.com/rigtorp/SPSCQueue, with the following modifications
 // to make it suitable for shared memory use:
-//  - Removed allocations for internal slots in favor of in-place array to avoid pointers in
+//  - Removed allocations for internal slots in favor of in-place storage to avoid pointers in
 //  different address spaces.
 //  - Removed the capacity_ member variable in favor of kCapacity template argument.
+//  - Store slots in uninitialized bytes so T does not need a default constructor and so
+//    destruction does not double-destroy live elements.
 template <typename T, size_t kCapacity>
-class SPSCQueue {
+class alignas(kSpscCacheLineSize) SPSCQueue {
  public:
   explicit SPSCQueue() {
     static_assert(kCapacity >= 1);
-    static_assert(alignof(SPSCQueue<T, kCapacity>) == kCacheLineSize, "");
-    static_assert(sizeof(SPSCQueue<T, kCapacity>) >= 3 * kCacheLineSize, "");
+    static_assert(alignof(SPSCQueue<T, kCapacity>) == kSpscCacheLineSize, "");
+    static_assert(sizeof(SPSCQueue<T, kCapacity>) >= 3 * kSpscCacheLineSize, "");
     assert(reinterpret_cast<char*>(&readIdx_) - reinterpret_cast<char*>(&writeIdx_) >=
-           static_cast<std::ptrdiff_t>(kCacheLineSize));
+           static_cast<std::ptrdiff_t>(kSpscCacheLineSize));
   }
 
   ~SPSCQueue() {
@@ -70,7 +77,7 @@ class SPSCQueue {
     while (nextWriteIdx == readIdxCache_) {
       readIdxCache_ = readIdx_.load(std::memory_order_acquire);
     }
-    new (&slots_[writeIdx + kPadding]) T(std::forward<Args>(args)...);
+    new (slot(writeIdx)) T(std::forward<Args>(args)...);
     writeIdx_.store(nextWriteIdx, std::memory_order_release);
   }
 
@@ -90,7 +97,7 @@ class SPSCQueue {
         return false;
       }
     }
-    new (&slots_[writeIdx + kPadding]) T(std::forward<Args>(args)...);
+    new (slot(writeIdx)) T(std::forward<Args>(args)...);
     writeIdx_.store(nextWriteIdx, std::memory_order_release);
     return true;
   }
@@ -120,20 +127,19 @@ class SPSCQueue {
   [[nodiscard]] T* front() noexcept {
     auto const readIdx = readIdx_.load(std::memory_order_relaxed);
     if (readIdx == writeIdxCache_) {
-      writeIdxCache_ = 0;
       writeIdxCache_ = writeIdx_.load(std::memory_order_acquire);
       if (writeIdxCache_ == readIdx) {
         return nullptr;
       }
     }
-    return &slots_[readIdx + kPadding];
+    return slot(readIdx);
   }
 
   void pop() noexcept {
     static_assert(std::is_nothrow_destructible<T>::value, "T must be nothrow destructible");
     auto const readIdx = readIdx_.load(std::memory_order_relaxed);
     assert(writeIdx_.load(std::memory_order_acquire) != readIdx);
-    slots_[readIdx + kPadding].~T();
+    slot(readIdx)->~T();
     auto nextReadIdx = readIdx + 1;
     if (nextReadIdx == kInternalCapacity) {
       nextReadIdx = 0;
@@ -154,22 +160,22 @@ class SPSCQueue {
     return writeIdx_.load(std::memory_order_acquire) == readIdx_.load(std::memory_order_acquire);
   }
 
-  [[nodiscard]] size_t capacity() const noexcept { return kCapacity; }
+  [[nodiscard]] static size_t capacity() noexcept { return kCapacity; }
 
  private:
-#ifdef __cpp_lib_hardware_interference_size
-  static constexpr size_t kCacheLineSize = std::hardware_destructive_interference_size;
-#else
-  static constexpr size_t kCacheLineSize = 64;
-#endif
-
+  static constexpr size_t kCacheLineSize = kSpscCacheLineSize;
   // Padding to avoid false sharing between slots_ and adjacent allocations
   static constexpr size_t kPadding = (kCacheLineSize - 1) / sizeof(T) + 1;
   // The queue needs one slack element
   static constexpr size_t kInternalCapacity = kCapacity + 1;
+  static constexpr size_t kSlotCount = kInternalCapacity + 2 * kPadding;
+
+  T* slot(size_t index) noexcept {
+    return std::launder(reinterpret_cast<T*>(slots_ + sizeof(T) * (index + kPadding)));
+  }
 
  private:
-  T slots_[kInternalCapacity];
+  alignas(T) std::byte slots_[sizeof(T) * kSlotCount]{};
 
   // Align to cache line size in order to avoid false sharing
   // readIdxCache_ and writeIdxCache_ is used to reduce the amount of cache

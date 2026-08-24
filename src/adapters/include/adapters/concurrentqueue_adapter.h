@@ -20,6 +20,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
  */
 
+#include <string>
+#include <utility>
+
 #include "concurrentqueue.h"
 
 namespace sham {
